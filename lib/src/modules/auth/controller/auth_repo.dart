@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:care_mall_rider/app/utils/network/apiurls.dart';
 
 /// Repository class for authentication-related API calls
 /// Follows the repository pattern to separate data layer from business logic
@@ -21,7 +22,7 @@ class AuthRepo {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse(''), // TODO: add sendOtp URL
+        Uri.parse(ApiUrls.sendOtp),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'phone': phone,
@@ -66,7 +67,7 @@ class AuthRepo {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse(''), // TODO: add verifyOtp URL
+        Uri.parse(ApiUrls.verifyOtp),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'phone': phone, 'otp': otp}),
       );

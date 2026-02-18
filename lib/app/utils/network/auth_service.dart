@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:care_mall_rider/app/utils/network/apiurls.dart';
 
 class AuthService {
   /// Sends OTP to the provided phone number
@@ -19,7 +20,7 @@ class AuthService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse(''), // TODO: add sendOtp URL
+        Uri.parse(ApiUrls.sendOtp),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'phone': phone,
@@ -64,7 +65,7 @@ class AuthService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse(''), // TODO: add verifyOtp URL
+        Uri.parse(ApiUrls.verifyOtp),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'phone': phone, 'otp': otp}),
       );
