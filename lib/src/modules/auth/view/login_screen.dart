@@ -139,9 +139,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         // Mobile number field with validator
                         TextFormField(
-                          onChanged: (value) {
-                            setState(() {});
-                          },
                           controller: _phoneController,
                           keyboardType: TextInputType.phone,
                           maxLength: 10,

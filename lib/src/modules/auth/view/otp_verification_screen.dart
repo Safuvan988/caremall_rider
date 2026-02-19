@@ -5,10 +5,11 @@ import 'package:care_mall_rider/app/theme_data/app_colors.dart';
 import 'package:care_mall_rider/app/utils/network/auth_service.dart';
 import 'package:care_mall_rider/app/utils/spaces.dart';
 import 'package:care_mall_rider/gen/assets.gen.dart';
-import 'package:care_mall_rider/src/modules/home_screen/view/home_screen.dart';
+import 'package:care_mall_rider/src/modules/kyc/kyc_verification_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class OTPVerificationScreen extends StatefulWidget {
   final String phoneNumber;
@@ -72,26 +73,21 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     super.dispose();
   }
 
-  String _getOTP() {
-    return _otpControllers.map((c) => c.text).join();
-  }
-
   Future<void> _verifyOTP() async {
-    final otp = _getOTP();
+    // Collect entered OTP (ignore empty boxes — join only filled ones)
+    final otp = _otpControllers.map((c) => c.text.trim()).join();
 
     if (otp.length != 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter complete 6-digit OTP'),
+          content: Text('Please enter the complete 6-digit OTP'),
           backgroundColor: Colors.red,
         ),
       );
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       final result = await AuthService.verifyOtp(
@@ -99,28 +95,41 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
         otp: otp,
       );
 
-      if (mounted) {
-        if (result['success']) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message']),
-              backgroundColor: Colors.green,
-            ),
-          );
-          // Navigate to KYC details screen after successful verification
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => HomeScreen()),
-            (route) => false, // Remove all previous routes
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message']),
-              backgroundColor: Colors.red,
-            ),
-          );
+      // ── Always save login state first (before any context use) ────────
+      final bool isSuccess = result['success'] == true;
+      if (isSuccess) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('isLoggedIn', true);
+        final token = result['token']?.toString() ?? '';
+        if (token.isNotEmpty) {
+          await prefs.setString('authToken', token);
         }
+      }
+      // ──────────────────────────────────────────────────────────────────
+
+      if (!mounted) return;
+
+      if (isSuccess) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'OTP verified successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const KycVerificationScreen()),
+          (route) => false,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result['message'] ?? 'Invalid OTP. Please try again.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -132,11 +141,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -309,7 +314,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                               // Hide keyboard after paste
                               FocusScope.of(context).unfocus();
 
-                              setState(() {});
                               return;
                             }
 
@@ -323,7 +327,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                               // Move to previous field on backspace
                               _otpFocusNodes[index - 1].requestFocus();
                             }
-                            setState(() {});
                           },
                         ),
                       );

@@ -9,7 +9,6 @@ class AppButton extends StatelessWidget {
   const AppButton({
     super.key,
     this.child,
-    required this.onPressed,
     this.isValid = true,
     this.btncolor,
     this.textcolor,
@@ -17,12 +16,13 @@ class AppButton extends StatelessWidget {
     this.isLoading = false,
     this.height,
     this.width,
-    this.borderRadius = 8.0, // 👈 added param
+    this.borderRadius = 8.0,
+    this.onPressed,
   });
 
   final Widget? child;
   final Color? btncolor, textcolor;
-  final Function() onPressed;
+  final VoidCallback? onPressed;
   final ButtonStyle? buttonStyle;
   final double? height, width;
   final bool? isValid;
