@@ -3,7 +3,6 @@ import 'package:care_mall_rider/app/commenwidget/apptext.dart';
 import 'package:care_mall_rider/app/theme_data/app_colors.dart';
 import 'package:care_mall_rider/src/modules/kyc/driving_license_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:care_mall_rider/src/modules/home_screen/view/home_screen.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class KycVerificationScreen extends StatelessWidget {
@@ -36,20 +35,20 @@ class KycVerificationScreen extends StatelessWidget {
 
                   // KYC Step Cards
                   _KycStepCard(
-                    icon: Icons.description_outlined,
+                    icon: Icons.badge_outlined,
                     iconBgColor: const Color(0xFFE8F0FE),
                     iconColor: const Color(0xFF4A6CF7),
-                    title: 'Identity Documents',
-                    subtitle: 'Upload Driving License & Identity Proof',
+                    title: 'Driving License',
+                    subtitle: 'Upload front & back of your license',
                   ),
                   const SizedBox(height: 10),
 
                   _KycStepCard(
-                    icon: Icons.insert_drive_file_outlined,
-                    iconBgColor: const Color(0xFFF2EEFF),
-                    iconColor: AppColors.purpleclprimery,
-                    title: 'Address Proof',
-                    subtitle: 'Verify your current address',
+                    icon: Icons.account_balance_outlined,
+                    iconBgColor: const Color(0xFFE8F5E9),
+                    iconColor: const Color(0xFF2E7D32),
+                    title: 'Bank / UPI Details',
+                    subtitle: 'Add your payout bank or UPI account',
                   ),
                   const SizedBox(height: 10),
 
@@ -57,17 +56,8 @@ class KycVerificationScreen extends StatelessWidget {
                     icon: Icons.directions_car_outlined,
                     iconBgColor: const Color(0xFFFFF8E1),
                     iconColor: const Color(0xFFFFA621),
-                    title: 'Vehicle Details',
-                    subtitle: 'Select and register your vehicle',
-                  ),
-                  const SizedBox(height: 10),
-
-                  _KycStepCard(
-                    icon: Icons.access_time_outlined,
-                    iconBgColor: const Color(0xFFFFEBEE),
-                    iconColor: AppColors.primarycolor,
-                    title: 'Review (24-48 hrs)',
-                    subtitle: 'Our team verifies your documents',
+                    title: 'Vehicle Selection',
+                    subtitle: 'Choose the vehicle type for deliveries',
                   ),
 
                   const SizedBox(height: 32),
@@ -88,27 +78,6 @@ class KycVerificationScreen extends StatelessWidget {
                       fontSize: 16.sp,
                       fontWeight: FontWeight.w700,
                       color: AppColors.whitecolor,
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // ─── Skip for now ──────────────────────────────────
-                  Center(
-                    child: TextButton(
-                      onPressed: () {
-                        // Handle skip
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(builder: (_) => const HomeScreen()),
-                        );
-                      },
-                      child: AppText(
-                        text: 'Skip for now',
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textDefaultSecondarycolor,
-                      ),
                     ),
                   ),
                 ],
@@ -172,56 +141,11 @@ class _KycHeader extends StatelessWidget {
                 color: Colors.white70,
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 20),
-
-              // ─── Step Progress Indicator ─────────────────────────────
-              _StepProgressIndicator(currentStep: 1, totalSteps: 4),
-              const SizedBox(height: 8),
-
-              AppText(
-                text: 'Step 1 of 4',
-                fontSize: 12,
-                fontWeight: FontWeight.w400,
-                color: Colors.white70,
-                textAlign: TextAlign.center,
-              ),
+              const SizedBox(height: 4),
             ],
           ),
         ),
       ),
-    );
-  }
-}
-
-// ─── Step Progress Indicator ───────────────────────────────────────────────────
-class _StepProgressIndicator extends StatelessWidget {
-  final int currentStep;
-  final int totalSteps;
-
-  const _StepProgressIndicator({
-    required this.currentStep,
-    required this.totalSteps,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(totalSteps, (index) {
-        final bool isActive = index < currentStep;
-        return Expanded(
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 3),
-            height: 4,
-            decoration: BoxDecoration(
-              color: isActive
-                  ? Colors.white
-                  : Colors.white.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-        );
-      }),
     );
   }
 }
@@ -283,6 +207,13 @@ class _KycStepCard extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+
+            // Arrow
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: Color(0xFFCCCCCC),
             ),
           ],
         ),

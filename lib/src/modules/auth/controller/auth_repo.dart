@@ -75,12 +75,27 @@ class AuthRepo {
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        // Try every common token field name
+        final dynamic rawData = responseData['data'] ?? responseData;
+        final String? token =
+            (responseData['token'] ??
+                    responseData['accessToken'] ??
+                    responseData['access_token'] ??
+                    responseData['jwt'] ??
+                    responseData['authToken'] ??
+                    rawData['token'] ??
+                    rawData['accessToken'] ??
+                    rawData['access_token'] ??
+                    rawData['jwt'] ??
+                    rawData['authToken'])
+                ?.toString();
+
         return {
           'success': true,
           'message': responseData['message'] ?? 'OTP verified successfully!',
           'data': responseData,
-          'token': responseData['token'], // Save token if provided
-          'user': responseData['user'], // Save user data if provided
+          'token': token,
+          'user': responseData['deliveryBoy'], // Save user data if provided
         };
       } else {
         return {

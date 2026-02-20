@@ -72,12 +72,35 @@ class AuthService {
 
       final responseData = jsonDecode(response.body);
 
+      // ignore: avoid_print
+      print('[AuthService] verifyOtp raw response: ${response.body}');
+
       if (response.statusCode == 200 || response.statusCode == 201) {
+        // Try every common token field name
+        final dynamic rawData = responseData['data'] ?? responseData;
+        final String? token =
+            (responseData['token'] ??
+                    responseData['accessToken'] ??
+                    responseData['access_token'] ??
+                    responseData['jwt'] ??
+                    responseData['authToken'] ??
+                    rawData['token'] ??
+                    rawData['accessToken'] ??
+                    rawData['access_token'] ??
+                    rawData['jwt'] ??
+                    rawData['authToken'])
+                ?.toString();
+
+        // ignore: avoid_print
+        print(
+          '[AuthService] Extracted token: ${token != null ? "YES (len=${token.length})" : "NULL — check field name!"}',
+        );
+
         return {
           'success': true,
           'message': responseData['message'] ?? 'OTP verified successfully!',
           'data': responseData,
-          'token': responseData['token'] ?? responseData['data']?['token'],
+          'token': token,
         };
       } else {
         return {

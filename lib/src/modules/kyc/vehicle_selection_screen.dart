@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:care_mall_rider/app/app_buttons/app_buttons.dart';
 import 'package:care_mall_rider/app/commenwidget/apptext.dart';
 import 'package:care_mall_rider/app/theme_data/app_colors.dart';
 import 'package:care_mall_rider/src/modules/home_screen/view/home_screen.dart';
+import 'package:care_mall_rider/src/modules/kyc/controller/kyc_repo.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -17,6 +19,8 @@ class VehicleSelectionScreen extends StatefulWidget {
 class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
   int? _selectedVehicleIndex;
   bool _isLoading = false;
+  final _registrationController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
 
   final List<_VehicleModel> _vehicles = [
     _VehicleModel(
@@ -46,7 +50,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
       priceTextColor: Colors.red,
     ),
     _VehicleModel(
-      title: 'Half Lorry',
+      title: 'Pickup Van',
       description: 'Large packages',
       limit: 'Up to 500 kg',
       price: '₹25-40/km',
@@ -60,37 +64,83 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
     ),
   ];
 
-  void _submitVerification() {
+  @override
+  void initState() {
+    super.initState();
+    _registrationController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _registrationController.dispose();
+    super.dispose();
+  }
+
+  bool get _canSubmit =>
+      _selectedVehicleIndex != null &&
+      _registrationController.text.trim().isNotEmpty;
+
+  void _submitVerification() async {
     if (_selectedVehicleIndex == null) return;
+    if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
-    // Save data locally
-    if (_selectedVehicleIndex != null) {
-      KycStorage.saveVehicleSelection(
-        vehicleIndex: _selectedVehicleIndex!,
-        vehicleTitle: _vehicles[_selectedVehicleIndex!].title,
-      );
+    // Save vehicle selection locally
+    KycStorage.saveVehicleSelection(
+      vehicleIndex: _selectedVehicleIndex!,
+      vehicleTitle: _vehicles[_selectedVehicleIndex!].title,
+    );
+
+    // Read all locally stored KYC data
+    final licenseData = await KycStorage.getDrivingLicense();
+    final bankData = await KycStorage.getBankDetails();
+
+    // Prepare file
+    File? drivingLicenseFront;
+
+    if (licenseData != null && licenseData['frontImagePath'] != null) {
+      drivingLicenseFront = File(licenseData['frontImagePath']);
     }
 
-    // Simulate API call
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        // Navigate to Dashboard or Success Screen
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-          (route) => false,
-        );
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Application Submitted for Verification!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    });
+    // Call the API
+    final result = await KycRepo.submitKyc(
+      vehicleType: _vehicles[_selectedVehicleIndex!].title,
+      registrationNumber: _registrationController.text.trim(),
+      licenseNumber: licenseData?['licenseNumber'] ?? '',
+      drivingLicenceFront: drivingLicenseFront,
+      paymentMode: bankData?['paymentMode'] ?? 'bank',
+      accountHolderName: bankData?['accountHolderName'] ?? '',
+      accountNumber: bankData?['accountNumber'] ?? '',
+      ifscCode: bankData?['ifscCode'] ?? '',
+      bankName: bankData?['bankName'] ?? '',
+      upiId: bankData?['upiId'] ?? '',
+      upiNumber: bankData?['upiNumber'] ?? '',
+    );
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (result['success'] == true) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        (route) => false,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'Application Submitted!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'Submission failed.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -124,85 +174,111 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
         ),
         centerTitle: false,
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
-              children: [
-                // ── Step Progress ──────────────────────────────────────────
-                const _StepProgressBar(currentStep: 4, totalSteps: 4),
-                SizedBox(height: 22.h),
+      body: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+                children: [
+                  // ── Step Progress ──────────────────────────────────────────
+                  const _StepProgressBar(currentStep: 3, totalSteps: 3),
+                  SizedBox(height: 22.h),
 
-                // ── Section Title ──────────────────────────────────────────
-                AppText(
-                  text: 'Select Your Vehicle',
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textnaturalcolor,
-                ),
-                SizedBox(height: 4.h),
-                AppText(
-                  text: 'Choose the vehicle type you\'ll use for deliveries',
-                  fontSize: 13.sp,
-                  fontWeight: FontWeight.w400,
-                  color: AppColors.textDefaultSecondarycolor,
-                ),
-                SizedBox(height: 20.h),
+                  // ── Section Title ──────────────────────────────────────────
+                  AppText(
+                    text: 'Select Your Vehicle',
+                    fontSize: 18.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textnaturalcolor,
+                  ),
+                  SizedBox(height: 4.h),
+                  AppText(
+                    text: 'Choose the vehicle type you\'ll use for deliveries',
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w400,
+                    color: AppColors.textDefaultSecondarycolor,
+                  ),
+                  SizedBox(height: 20.h),
 
-                // ── Vehicle List ───────────────────────────────────────────
-                ...List.generate(_vehicles.length, (index) {
-                  final vehicle = _vehicles[index];
-                  final isSelected = _selectedVehicleIndex == index;
-                  return Padding(
-                    padding: EdgeInsets.only(bottom: 16.h),
-                    child: _VehicleCard(
-                      vehicle: vehicle,
-                      isSelected: isSelected,
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        setState(() => _selectedVehicleIndex = index);
-                      },
-                    ),
-                  );
-                }),
-              ],
-            ),
-          ),
+                  // ── Vehicle List ───────────────────────────────────────────
+                  ...List.generate(_vehicles.length, (index) {
+                    final vehicle = _vehicles[index];
+                    final isSelected = _selectedVehicleIndex == index;
+                    return Padding(
+                      padding: EdgeInsets.only(bottom: 16.h),
+                      child: _VehicleCard(
+                        vehicle: vehicle,
+                        isSelected: isSelected,
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() => _selectedVehicleIndex = index);
+                        },
+                      ),
+                    );
+                  }),
 
-          // ── Bottom Button ──────────────────────────────────────────────
-          Container(
-            padding: EdgeInsets.all(16.w),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, -5),
-                ),
-              ],
-            ),
-            child: AppButton(
-              isLoading: _isLoading,
-              borderRadius: 30.r,
-              onPressed: _selectedVehicleIndex != null
-                  ? _submitVerification
-                  : null,
-              btncolor: _selectedVehicleIndex != null
-                  ? AppColors.primarycolor
-                  : Colors.grey[300],
-              child: AppText(
-                text: 'Submit for Verification',
-                fontSize: 16.sp,
-                fontWeight: FontWeight.w700,
-                color: _selectedVehicleIndex != null
-                    ? AppColors.whitecolor
-                    : Colors.grey[600] ?? Colors.grey,
+                  // ── Registration Number ────────────────────────────────
+                  SizedBox(height: 4.h),
+                  AppText(
+                    text: 'Vehicle Registration Number',
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textnaturalcolor,
+                  ),
+                  SizedBox(height: 6.h),
+                  _InputField(
+                    controller: _registrationController,
+                    hint: 'e.g. KL 01 AB 1234',
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                        RegExp(r'[a-zA-Z0-9 ]'),
+                      ),
+                      _UpperCaseFormatter(),
+                    ],
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Please enter registration number'
+                        : null,
+                  ),
+                  SizedBox(height: 8.h),
+                ],
               ),
             ),
-          ),
-        ],
+
+            // ── Bottom Button ──────────────────────────────────────────────
+            Container(
+              padding: EdgeInsets.all(16.w),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, -5),
+                  ),
+                ],
+              ),
+              child: AppButton(
+                isLoading: _isLoading,
+                borderRadius: 30.r,
+                onPressed: _canSubmit ? _submitVerification : null,
+                btncolor: _canSubmit
+                    ? AppColors.primarycolor
+                    : Colors.grey[300],
+                child: AppText(
+                  text: 'Submit for Verification',
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w700,
+                  color: _canSubmit
+                      ? AppColors.whitecolor
+                      : Colors.grey[600] ?? Colors.grey,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -422,5 +498,74 @@ class _StepProgressBar extends StatelessWidget {
     }
 
     return Row(children: children);
+  }
+}
+
+// ─── Reusable Input Field ──────────────────────────────────────────────────────
+class _InputField extends StatelessWidget {
+  final TextEditingController controller;
+  final String hint;
+  final String? Function(String?)? validator;
+  final List<TextInputFormatter>? inputFormatters;
+  final TextCapitalization textCapitalization;
+
+  const _InputField({
+    required this.controller,
+    required this.hint,
+    this.validator,
+    this.inputFormatters,
+    this.textCapitalization = TextCapitalization.none,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: controller,
+      textCapitalization: textCapitalization,
+      inputFormatters: inputFormatters,
+      style: TextStyle(fontSize: 14.sp, color: Colors.black87),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14.sp),
+        filled: true,
+        fillColor: const Color(0xFFF5F5F5),
+        contentPadding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10.r),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10.r),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10.r),
+          borderSide: const BorderSide(
+            color: AppColors.primarycolor,
+            width: 1.5,
+          ),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10.r),
+          borderSide: const BorderSide(color: Colors.red, width: 1.2),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10.r),
+          borderSide: const BorderSide(color: Colors.red, width: 1.5),
+        ),
+      ),
+      validator: validator,
+    );
+  }
+}
+
+// ─── Upper Case Formatter ──────────────────────────────────────────────────────
+class _UpperCaseFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return newValue.copyWith(text: newValue.text.toUpperCase());
   }
 }

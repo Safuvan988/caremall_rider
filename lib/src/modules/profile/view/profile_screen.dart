@@ -6,10 +6,34 @@ import 'package:care_mall_rider/app/utils/kyc_storage.dart';
 import 'package:care_mall_rider/src/modules/auth/view/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  String _name = 'Rider';
+  String _email = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final name = await StorageService.getUserName();
+    final email = await StorageService.getUserEmail();
+    if (mounted) {
+      setState(() {
+        if (name != null) _name = name;
+        if (email != null) _email = email;
+      });
+    }
+  }
 
   Future<void> _showLogoutDialog(BuildContext context) async {
     return showDialog<void>(
@@ -56,14 +80,9 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Future<void> _logout(BuildContext context) async {
-    // Clear all storage
+    // Clear all storage via services
     await StorageService.clearAuthData();
     await KycStorage.clearAll();
-
-    // Also clear the boolean used in OTPVerificationScreen
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('isLoggedIn');
-    await prefs.remove('authToken');
 
     if (context.mounted) {
       Navigator.pushAndRemoveUntil(
@@ -103,17 +122,15 @@ class ProfileScreen extends StatelessWidget {
               child: Icon(Icons.person, size: 50.sp, color: Colors.grey),
             ),
             SizedBox(height: 20.h),
-            AppText(
-              text: 'James Cameron', // Placeholder
-              fontSize: 20.sp,
-              fontWeight: FontWeight.w700,
-            ),
-            SizedBox(height: 10.h),
-            AppText(
-              text: 'james.cameron@example.com', // Placeholder
-              fontSize: 14.sp,
-              color: AppColors.textDefaultSecondarycolor,
-            ),
+            AppText(text: _name, fontSize: 20.sp, fontWeight: FontWeight.w700),
+            if (_email.isNotEmpty) ...[
+              SizedBox(height: 10.h),
+              AppText(
+                text: _email,
+                fontSize: 14.sp,
+                color: AppColors.textDefaultSecondarycolor,
+              ),
+            ],
             const Spacer(),
             AppButton(
               onPressed: () => _showLogoutDialog(context),

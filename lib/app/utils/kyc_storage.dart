@@ -3,8 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class KycStorage {
   static const String _drivingLicenseKey = 'kyc_driving_license';
-  static const String _identityCardKey = 'kyc_identity_card';
-  static const String _addressProofKey = 'kyc_address_proof';
+  static const String _bankDetailsKey = 'kyc_bank_details';
+
   static const String _vehicleSelectionKey = 'kyc_vehicle_selection';
 
   static Future<void> saveDrivingLicense({
@@ -25,40 +25,26 @@ class KycStorage {
     await prefs.setString(_drivingLicenseKey, jsonEncode(data));
   }
 
-  static Future<void> saveIdentityCard({
-    required String aadhaarPanNumber,
-    required String nameOnCard,
-    String? frontImagePath,
-    String? backImagePath,
+  static Future<void> saveBankDetails({
+    required String paymentMode,
+    String accountHolderName = '',
+    String accountNumber = '',
+    String ifscCode = '',
+    String bankName = '',
+    String upiId = '',
+    String upiNumber = '',
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final data = {
-      'aadhaarPanNumber': aadhaarPanNumber,
-      'nameOnCard': nameOnCard,
-      'frontImagePath': frontImagePath,
-      'backImagePath': backImagePath,
+      'paymentMode': paymentMode,
+      'accountHolderName': accountHolderName,
+      'accountNumber': accountNumber,
+      'ifscCode': ifscCode,
+      'bankName': bankName,
+      'upiId': upiId,
+      'upiNumber': upiNumber,
     };
-    await prefs.setString(_identityCardKey, jsonEncode(data));
-  }
-
-  static Future<void> saveAddressProof({
-    required String addressLine1,
-    required String city,
-    required String state,
-    required String pincode,
-    String? frontImagePath,
-    String? backImagePath,
-  }) async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = {
-      'addressLine1': addressLine1,
-      'city': city,
-      'state': state,
-      'pincode': pincode,
-      'frontImagePath': frontImagePath,
-      'backImagePath': backImagePath,
-    };
-    await prefs.setString(_addressProofKey, jsonEncode(data));
+    await prefs.setString(_bankDetailsKey, jsonEncode(data));
   }
 
   static Future<void> saveVehicleSelection({
@@ -76,15 +62,9 @@ class KycStorage {
     return data != null ? jsonDecode(data) : null;
   }
 
-  static Future<Map<String, dynamic>?> getIdentityCard() async {
+  static Future<Map<String, dynamic>?> getBankDetails() async {
     final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getString(_identityCardKey);
-    return data != null ? jsonDecode(data) : null;
-  }
-
-  static Future<Map<String, dynamic>?> getAddressProof() async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getString(_addressProofKey);
+    final data = prefs.getString(_bankDetailsKey);
     return data != null ? jsonDecode(data) : null;
   }
 
@@ -97,8 +77,8 @@ class KycStorage {
   static Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_drivingLicenseKey);
-    await prefs.remove(_identityCardKey);
-    await prefs.remove(_addressProofKey);
+    await prefs.remove(_bankDetailsKey);
+
     await prefs.remove(_vehicleSelectionKey);
   }
 }

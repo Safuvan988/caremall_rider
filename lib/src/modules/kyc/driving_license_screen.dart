@@ -3,7 +3,7 @@ import 'package:care_mall_rider/app/app_buttons/app_buttons.dart';
 import 'package:care_mall_rider/app/commenwidget/apptext.dart';
 import 'package:care_mall_rider/app/theme_data/app_colors.dart';
 import 'package:care_mall_rider/app/utils/spaces.dart';
-import 'package:care_mall_rider/src/modules/kyc/identity_card_screen.dart';
+import 'package:care_mall_rider/src/modules/kyc/bank_details_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -175,7 +175,7 @@ class _DrivingLicenseScreenState extends State<DrivingLicenseScreen> {
           setState(() => _isLoading = false);
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const IdentityCardScreen()),
+            MaterialPageRoute(builder: (_) => const BankDetailsScreen()),
           );
         }
       });
@@ -219,7 +219,7 @@ class _DrivingLicenseScreenState extends State<DrivingLicenseScreen> {
           padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
           children: [
             // ── Step Progress ──────────────────────────────────────────
-            _StepProgressBar(currentStep: 1, totalSteps: 4),
+            _StepProgressBar(currentStep: 1, totalSteps: 3),
             SizedBox(height: 22.h),
 
             // ── Section Title ──────────────────────────────────────────
@@ -306,30 +306,6 @@ class _DrivingLicenseScreenState extends State<DrivingLicenseScreen> {
               ],
               validator: (v) => (v == null || v.isEmpty)
                   ? 'Please enter license number'
-                  : null,
-            ),
-            SizedBox(height: 16.h),
-
-            // ── Date of Birth ──────────────────────────────────────────
-            AppText(
-              text: 'Date of Birth',
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textnaturalcolor,
-            ),
-            defaultSpacerSmall,
-            _InputField(
-              controller: _dobController,
-              hint: 'Enter Date of Birth',
-              readOnly: true,
-              onTap: () => _selectDate(_dobController),
-              suffixIcon: const Icon(
-                Icons.calendar_today_outlined,
-                size: 18,
-                color: AppColors.textDefaultSecondarycolor,
-              ),
-              validator: (v) => (v == null || v.isEmpty)
-                  ? 'Please select date of birth'
                   : null,
             ),
             SizedBox(height: 16.h),

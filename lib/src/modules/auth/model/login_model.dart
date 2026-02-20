@@ -16,10 +16,13 @@ class LoginModel {
   /// Creates LoginModel from JSON response
   factory LoginModel.fromJson(Map<String, dynamic> json) {
     return LoginModel(
-      success: json['success'] ?? false,
+      success:
+          true, // Assuming success if we get this far, or check json['message']
       message: json['message'] ?? '',
-      token: json['token'],
-      user: json['user'] != null ? UserData.fromJson(json['user']) : null,
+      token: json['accessToken'],
+      user: json['deliveryBoy'] != null
+          ? UserData.fromJson(json['deliveryBoy'])
+          : null,
     );
   }
 
@@ -28,8 +31,8 @@ class LoginModel {
     return {
       'success': success,
       'message': message,
-      'token': token,
-      'user': user?.toJson(),
+      'accessToken': token,
+      'deliveryBoy': user?.toJson(),
     };
   }
 
@@ -49,7 +52,7 @@ class LoginModel {
   }
 }
 
-/// Model class for User Data
+/// Model class for User Data (Delivery Boy)
 class UserData {
   final String? id;
   final String? name;
@@ -57,6 +60,7 @@ class UserData {
   final String? phone;
   final String? role;
   final String? profileImage;
+  final String? status;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -67,6 +71,7 @@ class UserData {
     this.phone,
     this.role,
     this.profileImage,
+    this.status,
     this.createdAt,
     this.updatedAt,
   });
@@ -74,21 +79,20 @@ class UserData {
   /// Creates UserData from JSON
   factory UserData.fromJson(Map<String, dynamic> json) {
     return UserData(
-      id: json['id']?.toString(),
+      id: json['_id']?.toString(), // Map _id to id
       name: json['name'],
       email: json['email'],
-      phone: json['phone'],
-      role: json['role'],
-      profileImage: json['profileImage'] ?? json['profile_image'],
+      phone: json['phone']?.toString(), // Handle phone as String
+      role: 'rider', // Default role for delivery boy
+      profileImage: json['avatar'], // Map avatar to profileImage
+      status: json['status'],
+      // createdAt and updatedAt might not be in the deliveryBoy object based on the sample,
+      // but keeping them if they appear or for compatibility
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'])
-          : json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'])
           : null,
       updatedAt: json['updatedAt'] != null
           ? DateTime.tryParse(json['updatedAt'])
-          : json['updated_at'] != null
-          ? DateTime.tryParse(json['updated_at'])
           : null,
     );
   }
@@ -96,12 +100,13 @@ class UserData {
   /// Converts UserData to JSON
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      '_id': id,
       'name': name,
       'email': email,
       'phone': phone,
       'role': role,
-      'profileImage': profileImage,
+      'avatar': profileImage,
+      'status': status,
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
     };
@@ -115,6 +120,7 @@ class UserData {
     String? phone,
     String? role,
     String? profileImage,
+    String? status,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -125,6 +131,7 @@ class UserData {
       phone: phone ?? this.phone,
       role: role ?? this.role,
       profileImage: profileImage ?? this.profileImage,
+      status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -135,7 +142,7 @@ class UserData {
     if (name != null && name!.isNotEmpty) return name!;
     if (email != null && email!.isNotEmpty) return email!;
     if (phone != null && phone!.isNotEmpty) return phone!;
-    return 'User';
+    return 'Rider';
   }
 
   /// Check if user has complete profile

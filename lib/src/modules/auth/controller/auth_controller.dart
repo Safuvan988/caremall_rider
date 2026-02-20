@@ -171,10 +171,37 @@ class AuthController extends GetxController {
 
       if (result['success']) {
         // Save authentication token if provided
+        // Save authentication token if provided
         if (result['token'] != null) {
           authToken.value = result['token'];
           // Save token to persistent storage
           await StorageService.saveAuthToken(result['token']);
+        }
+
+        // Save user details if provided
+        if (result['user'] != null) {
+          final userData = result['user'];
+          if (userData['name'] != null) {
+            userName.value = userData['name'];
+            await StorageService.saveUserName(userData['name']);
+          }
+          if (userData['email'] != null) {
+            userEmail.value = userData['email'];
+            await StorageService.saveUserEmail(userData['email']);
+          }
+          // Phone is already passed to the function, but good to save it from response if available and consistent
+          // However, the phone arg is the one used for OTP, so we stick with it or update if response has it.
+          // The response has phone as number, we treat as string.
+          if (userData['phone'] != null) {
+            final phoneStr = userData['phone'].toString();
+            phoneNumber.value = phoneStr;
+            await StorageService.savePhoneNumber(phoneStr);
+          } else {
+            phoneNumber.value = phone;
+            await StorageService.savePhoneNumber(phone);
+          }
+        } else {
+          phoneNumber.value = phone;
           await StorageService.savePhoneNumber(phone);
         }
 

@@ -9,7 +9,7 @@ import 'package:care_mall_rider/src/modules/kyc/kyc_verification_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:care_mall_rider/src/core/services/storage_service.dart';
 
 class OTPVerificationScreen extends StatefulWidget {
   final String phoneNumber;
@@ -98,11 +98,24 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       // ── Always save login state first (before any context use) ────────
       final bool isSuccess = result['success'] == true;
       if (isSuccess) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('isLoggedIn', true);
         final token = result['token']?.toString() ?? '';
         if (token.isNotEmpty) {
-          await prefs.setString('authToken', token);
+          await StorageService.saveAuthToken(token);
+        }
+
+        // Save user profile data
+        final responseData = result['data'] ?? {};
+        final userData = responseData['deliveryBoy'] ?? {};
+        if (userData.isNotEmpty) {
+          if (userData['name'] != null) {
+            await StorageService.saveUserName(userData['name'].toString());
+          }
+          if (userData['email'] != null) {
+            await StorageService.saveUserEmail(userData['email'].toString());
+          }
+          if (userData['phone'] != null) {
+            await StorageService.savePhoneNumber(userData['phone'].toString());
+          }
         }
       }
       // ──────────────────────────────────────────────────────────────────
@@ -312,7 +325,9 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                               }
 
                               // Hide keyboard after paste
-                              FocusScope.of(context).unfocus();
+                              Future.microtask(() {
+                                if (mounted) FocusScope.of(context).unfocus();
+                              });
 
                               return;
                             }
@@ -320,12 +335,20 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                             // Handle single character input
                             if (value.length == 1) {
                               if (index < 5) {
-                                // Move to next field
-                                _otpFocusNodes[index + 1].requestFocus();
+                                // Move to next field (delay to avoid crash on key event)
+                                Future.microtask(() {
+                                  if (mounted) {
+                                    _otpFocusNodes[index + 1].requestFocus();
+                                  }
+                                });
                               }
                             } else if (value.isEmpty && index > 0) {
-                              // Move to previous field on backspace
-                              _otpFocusNodes[index - 1].requestFocus();
+                              // Move to previous field on backspace (delay to avoid crash)
+                              Future.microtask(() {
+                                if (mounted) {
+                                  _otpFocusNodes[index - 1].requestFocus();
+                                }
+                              });
                             }
                           },
                         ),
