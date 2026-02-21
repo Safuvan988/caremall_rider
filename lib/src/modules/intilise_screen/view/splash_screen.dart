@@ -1,11 +1,12 @@
 import 'package:care_mall_rider/app/commenwidget/apptext.dart';
 import 'package:care_mall_rider/app/theme_data/app_colors.dart';
 import 'package:care_mall_rider/gen/assets.gen.dart';
-import 'package:care_mall_rider/src/modules/kyc/kyc_verification_screen.dart';
+import 'package:care_mall_rider/src/core/services/storage_service.dart';
 import 'package:care_mall_rider/src/modules/auth/view/login_screen.dart';
+import 'package:care_mall_rider/src/modules/home_screen/view/home_screen.dart';
+import 'package:care_mall_rider/src/modules/kyc/view/kyc_verification_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -18,28 +19,42 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _navigateToLogin();
+    _navigate();
   }
 
-  Future<void> _navigateToLogin() async {
-    // Wait for 3 seconds on splash screen
+  Future<void> _navigate() async {
     await Future.delayed(const Duration(seconds: 3));
 
     if (!mounted) return;
 
-    // Check if user is already logged in
-    final prefs = await SharedPreferences.getInstance();
-    final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+    final isLoggedIn = await StorageService.isLoggedIn();
 
     if (!mounted) return;
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            isLoggedIn ? const KycVerificationScreen() : const LoginScreen(),
-      ),
-    );
+    if (!isLoggedIn) {
+      // Not logged in → go to Login
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+    } else {
+      final kycDone = await StorageService.isKycCompleted();
+      if (!mounted) return;
+
+      if (kycDone) {
+        // Logged in + KYC done → go to Home
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      } else {
+        // Logged in but KYC pending → go to KYC
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const KycVerificationScreen()),
+        );
+      }
+    }
   }
 
   @override

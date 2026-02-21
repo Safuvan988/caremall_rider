@@ -2,6 +2,7 @@ import 'package:care_mall_rider/src/core/services/storage_service.dart';
 import 'package:care_mall_rider/src/modules/intilise_screen/view/splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:get/get.dart';
 
 void main() async {
   // Ensure Flutter is initialized
@@ -23,7 +24,7 @@ class MyApp extends StatelessWidget {
       minTextAdapt: true,
       splitScreenMode: true,
       builder: (context, child) {
-        return MaterialApp(
+        return GetMaterialApp(
           debugShowCheckedModeBanner: false,
           color: Colors.white,
           title: 'Care Mall Rider',

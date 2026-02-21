@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:care_mall_rider/app/app_buttons/app_buttons.dart';
 import 'package:care_mall_rider/app/commenwidget/apptext.dart';
 import 'package:care_mall_rider/app/theme_data/app_colors.dart';
+import 'package:care_mall_rider/src/core/services/storage_service.dart';
 import 'package:care_mall_rider/src/modules/home_screen/view/home_screen.dart';
 import 'package:care_mall_rider/src/modules/kyc/controller/kyc_repo.dart';
 import 'package:flutter/material.dart';
@@ -59,6 +60,19 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
       iconColor: Colors.purple,
       limitColor: const Color(0xFFFFF3E0),
       limitTextColor: Colors.orange,
+      priceColor: const Color(0xFFFFE8E8),
+      priceTextColor: Colors.red,
+    ),
+    _VehicleModel(
+      title: 'Truck',
+      description: 'Heavy & bulk cargo',
+      limit: 'Up to 2000 kg',
+      price: '₹40-60/km',
+      icon: Icons.local_shipping,
+      color: const Color(0xFFE8F5E9),
+      iconColor: Colors.green,
+      limitColor: const Color(0xFFE0F2F1),
+      limitTextColor: Colors.teal,
       priceColor: const Color(0xFFFFE8E8),
       priceTextColor: Colors.red,
     ),
@@ -122,6 +136,10 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
     setState(() => _isLoading = false);
 
     if (result['success'] == true) {
+      // Mark KYC as completed in persistent storage
+      await StorageService.saveKycCompleted(true);
+
+      if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const HomeScreen()),
@@ -202,25 +220,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
                   ),
                   SizedBox(height: 20.h),
 
-                  // ── Vehicle List ───────────────────────────────────────────
-                  ...List.generate(_vehicles.length, (index) {
-                    final vehicle = _vehicles[index];
-                    final isSelected = _selectedVehicleIndex == index;
-                    return Padding(
-                      padding: EdgeInsets.only(bottom: 16.h),
-                      child: _VehicleCard(
-                        vehicle: vehicle,
-                        isSelected: isSelected,
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          setState(() => _selectedVehicleIndex = index);
-                        },
-                      ),
-                    );
-                  }),
-
                   // ── Registration Number ────────────────────────────────
-                  SizedBox(height: 4.h),
                   AppText(
                     text: 'Vehicle Registration Number',
                     fontSize: 13.sp,
@@ -242,6 +242,24 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
                         ? 'Please enter registration number'
                         : null,
                   ),
+                  SizedBox(height: 20.h),
+
+                  // ── Vehicle List ───────────────────────────────────────────
+                  ...List.generate(_vehicles.length, (index) {
+                    final vehicle = _vehicles[index];
+                    final isSelected = _selectedVehicleIndex == index;
+                    return Padding(
+                      padding: EdgeInsets.only(bottom: 16.h),
+                      child: _VehicleCard(
+                        vehicle: vehicle,
+                        isSelected: isSelected,
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() => _selectedVehicleIndex = index);
+                        },
+                      ),
+                    );
+                  }),
                   SizedBox(height: 8.h),
                 ],
               ),

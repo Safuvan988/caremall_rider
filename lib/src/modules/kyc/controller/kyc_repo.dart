@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:care_mall_rider/app/utils/network/apiurls.dart';
 import 'package:care_mall_rider/src/core/services/storage_service.dart';
+import 'package:care_mall_rider/src/core/utils/logger_service.dart';
 
 /// Repository for KYC-related API calls
 class KycRepo {
@@ -36,11 +38,11 @@ class KycRepo {
         final maskedToken = token.length > 10
             ? '${token.substring(0, 5)}...${token.substring(token.length - 5)}'
             : '***';
-        // ignore: avoid_print
-        print('[KycRepo] Token found: $maskedToken (length: ${token.length})');
+        Log.debug(
+          '[KycRepo] Token found: $maskedToken (length: ${token.length})',
+        );
       } else {
-        // ignore: avoid_print
-        print(
+        Log.warning(
           '[KycRepo] WARNING: No token found — request will be Unauthorized',
         );
       }
@@ -74,10 +76,16 @@ class KycRepo {
 
       // Attach driving licence image
       if (drivingLicenceFront != null) {
+        final extension = drivingLicenceFront.path.split('.').last;
+
         request.files.add(
           await http.MultipartFile.fromPath(
             'drivingLicence',
             drivingLicenceFront.path,
+            contentType: MediaType(
+              'image',
+              extension == 'png' ? 'png' : 'jpeg',
+            ),
           ),
         );
       }
@@ -108,6 +116,37 @@ class KycRepo {
       };
     } catch (e) {
       return {'success': false, 'message': 'An error occurred: $e'};
+    }
+  }
+
+  /// Fetches the rider's current KYC status.
+  static Future<Map<String, dynamic>> getKycStatus() async {
+    try {
+      final token = await StorageService.getAuthToken();
+      final response = await http.get(
+        Uri.parse(ApiUrls.kycStatus),
+        headers: {
+          'Accept': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      final responseData = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'status': responseData['status'] ?? 'pending',
+          'data': responseData,
+        };
+      } else {
+        return {
+          'success': false,
+          'message': responseData['message'] ?? 'Failed to fetch status.',
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
     }
   }
 }

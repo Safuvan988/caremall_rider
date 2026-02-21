@@ -7,6 +7,11 @@ import 'package:care_mall_rider/src/modules/home_screen/view/order_details_scree
 import 'package:care_mall_rider/src/modules/home_screen/view/route_screen.dart';
 import 'package:care_mall_rider/src/modules/profile/view/profile_screen.dart';
 import 'package:care_mall_rider/src/core/services/storage_service.dart';
+import 'package:care_mall_rider/src/modules/home_screen/controller/order_repo.dart';
+import 'package:care_mall_rider/src/modules/home_screen/model/delivery_order_model.dart';
+import 'package:care_mall_rider/src/modules/home_screen/model/return_order_model.dart';
+import 'package:care_mall_rider/src/modules/home_screen/view/return_details_screen.dart';
+import 'package:care_mall_rider/src/modules/wallet/view/wallet_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,133 +27,93 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedTab = 0;
   String _userName = 'Rider';
 
+  // ── API state ────────────────────────────────────────────────────────────
+  List<DeliveryOrder> _allOrders = [];
+  bool _ordersLoading = true;
+  String? _ordersError;
+
+  List<ReturnOrder> _returnOrders = [];
+  bool _returnsLoading = true;
+  String? _returnsError;
+
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    _fetchOrders();
   }
 
   Future<void> _loadUserData() async {
     final name = await StorageService.getUserName();
-    if (name != null && name.isNotEmpty) {
-      if (mounted) {
-        setState(() {
-          _userName = name;
-        });
-      }
+    if (name != null && name.isNotEmpty && mounted) {
+      setState(() => _userName = name);
     }
   }
 
-  final List<Map<String, dynamic>> _newOrders = [
-    {
-      'id': '#ORD123452346',
-      'distance': '2.5 KM',
-      'time': '11:00 AM - 1:00 PM',
-      'address': 'John Doe, ABC Building DEF Street, Ernakulam, 682035',
-      'amount': '₹ 1,000',
-      'isPrePaid': false,
-      'buttonText': 'View Details',
-    },
-    {
-      'id': '#ORD987654321',
-      'distance': '3.0 KM',
-      'time': '12:00 PM - 2:00 PM',
-      'address': 'Alice Smith, 456 Park Ave, Cochin, 682001',
-      'amount': '₹ 550',
-      'isPrePaid': true,
-      'buttonText': 'View Details',
-    },
-    {
-      'id': '#ORD456789123',
-      'distance': '4.2 KM',
-      'time': '12:30 PM - 2:30 PM',
-      'address': 'Bob Johnson, 789 Bay St, Ernakulam, 682036',
-      'amount': '₹ 1,200',
-      'isPrePaid': false,
-      'buttonText': 'View Details',
-    },
-  ];
+  Future<void> _fetchOrders() async {
+    setState(() {
+      _ordersLoading = true;
+      _ordersError = null;
+      _returnsLoading = true;
+      _returnsError = null;
+    });
+    // Fetch delivery orders and return orders in parallel
+    await Future.wait([
+      OrderRepo.getDeliveryOrders()
+          .then((orders) {
+            if (mounted) setState(() => _allOrders = orders);
+          })
+          .catchError((e) {
+            if (mounted) setState(() => _ordersError = e.toString());
+          }),
+      OrderRepo.getReturnOrders()
+          .then((returns) {
+            if (mounted) setState(() => _returnOrders = returns);
+          })
+          .catchError((e) {
+            if (mounted) setState(() => _returnsError = e.toString());
+          }),
+    ]);
+    if (mounted) {
+      setState(() {
+        _ordersLoading = false;
+        _returnsLoading = false;
+      });
+    }
+  }
 
-  final List<Map<String, dynamic>> _inTransitOrders = [
-    {
-      'id': '#ORD123456455',
-      'distance': '15 KM',
-      'time': '11:00 AM - 1:00 PM',
-      'address': 'Sarah James, XYZ Mall GHI Road, Cochin, 682016',
-      'amount': '',
-      'isPrePaid': true,
-      'buttonText': 'View Details',
-    },
-    {
-      'id': '#ORD123456455',
-      'distance': '15 KM',
-      'time': '1:30 PM - 3:30 PM',
-      'address': 'John Doe, XYZ Mall GHI Road, Cochin, 682016',
-      'amount': '',
-      'isPrePaid': true,
-      'buttonText': 'View Details',
-    },
-    {
-      'id': '#ORD123456433',
-      'distance': '15 KM',
-      'time': '4:00 PM - 6:00 PM',
-      'address': 'Emily Clark, 123 Main St, Kottayam, 686001',
-      'amount': '',
-      'isPrePaid': true,
-      'buttonText': 'View Details',
-    },
-    {
-      'id': '#ORD852963741',
-      'distance': '8 KM',
-      'time': '5:00 PM - 7:00 PM',
-      'address': 'Michael Brown, 321 Oak Ln, Cochin, 682020',
-      'amount': '₹ 800',
-      'isPrePaid': false,
-      'buttonText': 'View Details',
-    },
-    {
-      'id': '#ORD159753456',
-      'distance': '12 KM',
-      'time': '6:00 PM - 8:00 PM',
-      'address': 'Linda Davis, 654 Pine Rd, Ernakulam, 682030',
-      'amount': '',
-      'isPrePaid': true,
-      'buttonText': 'View Details',
-    },
-  ];
+  // Tab filters based on orderStatus
+  static const _newStatuses = {
+    'pending',
+    'confirmed',
+    'processing',
+    'dispatched',
+  };
+  static const _transitStatuses = {'shipped', 'out_for_delivery'};
+  static const _historyStatuses = {'delivered', 'cancelled', 'failed'};
 
-  final List<Map<String, dynamic>> _historyOrders = [
-    {
-      'id': '#ORD111222333',
-      'distance': '5 KM',
-      'time': 'Yesterday',
-      'address': 'George Wilson, 987 Cedar Blvd, Cochin, 682025',
-      'amount': '₹ 450',
-      'isPrePaid': true,
-      'buttonText': 'View Details',
-    },
-    {
-      'id': '#ORD444555666',
-      'distance': '10 KM',
-      'time': 'Yesterday',
-      'address': 'Nancy Martin, 123 Elm St, Ernakulam, 682031',
-      'amount': '₹ 900',
-      'isPrePaid': false,
-      'buttonText': 'View Details',
-    },
-    // Add more mock history if needed to match "12" but 2 is enough for demo
-  ];
+  List<DeliveryOrder> get _newOrders =>
+      _allOrders.where((o) => _newStatuses.contains(o.orderStatus)).toList();
+  List<DeliveryOrder> get _inTransitOrders => _allOrders
+      .where((o) => _transitStatuses.contains(o.orderStatus))
+      .toList();
+  List<DeliveryOrder> get _historyOrders => _allOrders
+      .where((o) => _historyStatuses.contains(o.orderStatus))
+      .toList();
 
-  List<Map<String, dynamic>> get _currentOrders {
+  // _selectedTab: 0=New 1=InTransit 2=Return 3=History
+  bool get _isReturnTab => _selectedTab == 2;
+
+  List<DeliveryOrder> get _currentOrders {
     switch (_selectedTab) {
       case 0:
         return _newOrders;
       case 1:
         return _inTransitOrders;
-      case 2:
+      case 3:
         return _historyOrders;
       default:
-        return _newOrders;
+        return [];
     }
   }
 
@@ -156,8 +121,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF9F9F9),
-      body: _selectedIndex == 2
+      body: _selectedIndex == 3
           ? const ProfileScreen()
+          : _selectedIndex == 2
+          ? const WalletScreen()
           : SafeArea(
               child: Column(
                 children: [
@@ -198,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   value: _isOnline,
                                   onChanged: (val) =>
                                       setState(() => _isOnline = val),
-                                  activeColor: AppColors.primarycolor,
+                                  activeThumbColor: AppColors.primarycolor,
                                   activeTrackColor: AppColors.primarycolor
                                       .withValues(alpha: 0.2),
                                   inactiveThumbColor: Colors.grey,
@@ -256,7 +223,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     SizedBox(height: 16.h),
 
-                    // ─── Tabs ────────────────────────────────────────────────────────
+                    // ─── Tabs ────────────────────────────────────────────────────────────────
                     Container(
                       height: 45.h,
                       margin: EdgeInsets.symmetric(horizontal: 16.w),
@@ -272,26 +239,18 @@ class _HomeScreenState extends State<HomeScreen> {
                             'In Transit (${_inTransitOrders.length})',
                             1,
                           ),
-                          _buildTab(
-                            'History (12)',
-                            2,
-                          ), // Keep history fixed for now or update
+                          _buildTab('Returns (${_returnOrders.length})', 2),
+                          _buildTab('History (${_historyOrders.length})', 3),
                         ],
                       ),
                     ),
                     SizedBox(height: 16.h),
 
-                    // ─── Order List ──────────────────────────────────────────────────
+                    // ─── Order / Return List ──────────────────────────────────────────
                     Expanded(
-                      child: ListView.separated(
-                        padding: EdgeInsets.all(16.w),
-                        itemCount: _currentOrders.length,
-                        separatorBuilder: (_, _) => SizedBox(height: 12.h),
-                        itemBuilder: (context, index) {
-                          final order = _currentOrders[index];
-                          return _buildOrderCard(order);
-                        },
-                      ),
+                      child: _isReturnTab
+                          ? _buildReturnList()
+                          : _buildDeliveryList(),
                     ),
                   ] else if (_selectedIndex == 1) ...[
                     const Expanded(child: RouteScreen()),
@@ -318,6 +277,11 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icon(Icons.route_outlined),
             activeIcon: Icon(Icons.route),
             label: 'Route',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.account_balance_wallet_outlined),
+            activeIcon: Icon(Icons.account_balance_wallet),
+            label: 'Wallet',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
@@ -364,8 +328,240 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildOrderCard(Map<String, dynamic> order) {
-    final bool isPrePaid = order['isPrePaid'];
+  Widget _buildDeliveryList() {
+    if (_ordersLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_ordersError != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.wifi_off_rounded, size: 48.sp, color: Colors.grey[400]),
+            SizedBox(height: 12.h),
+            AppText(
+              text: 'Could not load orders',
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[600]!,
+            ),
+            SizedBox(height: 8.h),
+            TextButton.icon(
+              onPressed: _fetchOrders,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+    final orders = _currentOrders;
+    if (orders.isEmpty) {
+      return Center(
+        child: AppText(
+          text: 'No orders here',
+          fontSize: 14.sp,
+          fontWeight: FontWeight.w500,
+          color: Colors.grey[500]!,
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _fetchOrders,
+      child: ListView.separated(
+        padding: EdgeInsets.all(16.w),
+        itemCount: orders.length,
+        separatorBuilder: (_, _) => SizedBox(height: 12.h),
+        itemBuilder: (context, index) => _buildOrderCard(orders[index]),
+      ),
+    );
+  }
+
+  Widget _buildReturnList() {
+    if (_returnsLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_returnsError != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.wifi_off_rounded, size: 48.sp, color: Colors.grey[400]),
+            SizedBox(height: 12.h),
+            AppText(
+              text: 'Could not load returns',
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[600]!,
+            ),
+            SizedBox(height: 8.h),
+            TextButton.icon(
+              onPressed: _fetchOrders,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_returnOrders.isEmpty) {
+      return Center(
+        child: AppText(
+          text: 'No return orders',
+          fontSize: 14.sp,
+          fontWeight: FontWeight.w500,
+          color: Colors.grey[500]!,
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _fetchOrders,
+      child: ListView.separated(
+        padding: EdgeInsets.all(16.w),
+        itemCount: _returnOrders.length,
+        separatorBuilder: (_, _) => SizedBox(height: 12.h),
+        itemBuilder: (context, index) => _buildReturnCard(_returnOrders[index]),
+      ),
+    );
+  }
+
+  Widget _buildReturnCard(ReturnOrder ret) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ReturnDetailsScreen(returnOrder: ret),
+          ),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12.r),
+          border: Border.all(color: Colors.grey[200]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(16.w),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: AppText(
+                      text: 'Return #${ret.returnId}',
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textnaturalcolor,
+                    ),
+                  ),
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 8.w,
+                      vertical: 4.h,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF3E0),
+                      borderRadius: BorderRadius.circular(4.r),
+                    ),
+                    child: AppText(
+                      text: ret.orderStatus.replaceAll('_', ' ').toUpperCase(),
+                      fontSize: 11.sp,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFFE65100),
+                    ),
+                  ),
+                ],
+              ),
+              if (ret.customerName != null) ...[
+                SizedBox(height: 8.h),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.person_outline,
+                      size: 14.sp,
+                      color: Colors.grey[500],
+                    ),
+                    SizedBox(width: 6.w),
+                    Expanded(
+                      child: AppText(
+                        text: ret.customerName!,
+                        fontSize: 13.sp,
+                        color: AppColors.textnaturalcolor,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if (ret.address != null) ...[
+                SizedBox(height: 4.h),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.location_on_outlined,
+                      size: 14.sp,
+                      color: Colors.grey[500],
+                    ),
+                    SizedBox(width: 6.w),
+                    Expanded(
+                      child: AppText(
+                        text: ret.address!,
+                        fontSize: 12.sp,
+                        color: Colors.grey[600]!,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if (ret.reason != null) ...[
+                SizedBox(height: 4.h),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 14.sp,
+                      color: Colors.grey[500],
+                    ),
+                    SizedBox(width: 6.w),
+                    Expanded(
+                      child: AppText(
+                        text: 'Reason: ${ret.reason}',
+                        fontSize: 12.sp,
+                        color: Colors.grey[600]!,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              SizedBox(height: 12.h),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  AppText(
+                    text: '₹ ${ret.totalAmount.toStringAsFixed(0)}',
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textnaturalcolor,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrderCard(DeliveryOrder order) {
+    final bool isCod = order.isCod;
 
     return Container(
       decoration: BoxDecoration(
@@ -386,58 +582,65 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Top Row: ID and Distance
+            // Top Row: Order ID + Status badge
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                AppText(
-                  text: 'Order ID : ${order['id']}',
-                  fontSize: 15.sp,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textnaturalcolor,
+                Expanded(
+                  child: AppText(
+                    text: 'Order ID : ${order.orderId}',
+                    fontSize: 15.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textnaturalcolor,
+                  ),
                 ),
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFE3E3), // Light red bg
+                    color: _statusBadgeBg(order.orderStatus),
                     borderRadius: BorderRadius.circular(4.r),
                   ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.location_on_outlined,
-                        size: 14.sp,
-                        color: Colors.red,
-                      ),
-                      SizedBox(width: 4.w),
-                      AppText(
-                        text: order['distance'],
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textnaturalcolor,
-                      ),
-                    ],
+                  child: AppText(
+                    text: order.orderStatus.replaceAll('_', ' ').toUpperCase(),
+                    fontSize: 11.sp,
+                    fontWeight: FontWeight.w600,
+                    color: _statusBadgeFg(order.orderStatus),
                   ),
                 ),
               ],
             ),
             SizedBox(height: 8.h),
 
-            // Time
-            AppText(
-              text: order['time'],
-              fontSize: 13.sp,
-              fontWeight: FontWeight.w400,
-              color: AppColors.textDefaultSecondarycolor,
-            ),
-            SizedBox(height: 8.h),
+            // Destination
+            if (order.dispatch?.destination != null) ...[
+              Row(
+                children: [
+                  Icon(
+                    Icons.location_on_outlined,
+                    size: 14.sp,
+                    color: Colors.grey[500],
+                  ),
+                  SizedBox(width: 4.w),
+                  Expanded(
+                    child: AppText(
+                      text: order.dispatch!.destination,
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w400,
+                      color: AppColors.textDefaultSecondarycolor,
+                      maxLines: 1,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 8.h),
+            ],
 
             Divider(height: 1.h, thickness: 1, color: Colors.grey[200]),
             SizedBox(height: 8.h),
 
-            // Address
+            // Delivery address
             AppText(
-              text: order['address'],
+              text: order.fullAddress,
               fontSize: 13.sp,
               fontWeight: FontWeight.w400,
               color: AppColors.textDefaultSecondarycolor,
@@ -445,14 +648,14 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             SizedBox(height: 16.h),
 
-            // Bottom Row: Payment and Action
+            // Bottom Row: Payment + Action
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (!isPrePaid) ...[
+                    if (isCod) ...[
                       AppText(
                         text: 'Cash on Delivery',
                         fontSize: 11.sp,
@@ -461,7 +664,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       SizedBox(height: 2.h),
                       AppText(
-                        text: order['amount'],
+                        text: '₹ ${order.totalAmount.toStringAsFixed(0)}',
                         fontSize: 16.sp,
                         fontWeight: FontWeight.w600,
                         color: AppColors.textnaturalcolor,
@@ -471,44 +674,82 @@ class _HomeScreenState extends State<HomeScreen> {
                         text: 'Pre Paid',
                         fontSize: 15.sp,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.textPositiveSecondarycolor, // Green
+                        color: AppColors.textPositiveSecondarycolor,
                       ),
                   ],
                 ),
-                SizedBox(width: 16.w), // Spacer
+                SizedBox(width: 16.w),
                 Expanded(
-                  child: SizedBox(
-                    height: 40.h,
-                    child: AppButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                OrderDetailsScreen(order: order),
+                  child: order.orderStatus.toLowerCase() == 'delivered'
+                      ? GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    OrderDetailsScreen(order: order),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            height: 40.h,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE6F4EE),
+                              borderRadius: BorderRadius.circular(6.r),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.check_circle,
+                                  color: const Color(0xFF1E7E4C),
+                                  size: 16.sp,
+                                ),
+                                SizedBox(width: 4.w),
+                                AppText(
+                                  text: 'Paid',
+                                  fontSize: 13.sp,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF1E7E4C),
+                                ),
+                              ],
+                            ),
                           ),
-                        );
-                      },
-                      btncolor: AppColors.primarycolor,
-                      borderRadius: 6.r,
-                      buttonStyle: ButtonStyle(
-                        backgroundColor: WidgetStateProperty.all(
-                          AppColors.primarycolor,
-                        ),
-                        shape: WidgetStateProperty.all(
-                          RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6.r),
+                        )
+                      : SizedBox(
+                          height: 40.h,
+                          child: AppButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      OrderDetailsScreen(order: order),
+                                ),
+                              );
+                            },
+                            btncolor: AppColors.primarycolor,
+                            borderRadius: 6.r,
+                            buttonStyle: ButtonStyle(
+                              backgroundColor: WidgetStateProperty.all(
+                                AppColors.primarycolor,
+                              ),
+                              shape: WidgetStateProperty.all(
+                                RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(6.r),
+                                ),
+                              ),
+                            ),
+                            child: AppText(
+                              text: _selectedTab == 0
+                                  ? 'Start Delivery'
+                                  : 'View Details',
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
-                      ),
-                      child: AppText(
-                        text: order['buttonText'] ?? 'View Details',
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
                 ),
               ],
             ),
@@ -516,5 +757,39 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  Color _statusBadgeBg(String status) {
+    switch (status.toLowerCase()) {
+      case 'delivered':
+        return const Color(0xFFE6F4EE);
+      case 'cancelled':
+      case 'failed':
+        return const Color(0xFFFFE3E3);
+      case 'shipped':
+      case 'out_for_delivery':
+        return const Color(0xFFE8F0FE);
+      case 'dispatched':
+        return const Color(0xFFFFF3E0);
+      default:
+        return const Color(0xFFF3F4F6);
+    }
+  }
+
+  Color _statusBadgeFg(String status) {
+    switch (status.toLowerCase()) {
+      case 'delivered':
+        return const Color(0xFF1E7E4C);
+      case 'cancelled':
+      case 'failed':
+        return Colors.red;
+      case 'shipped':
+      case 'out_for_delivery':
+        return const Color(0xFF1A56DB);
+      case 'dispatched':
+        return const Color(0xFFE65100);
+      default:
+        return const Color(0xFF374151);
+    }
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:care_mall_rider/app/utils/network/apiurls.dart';
+import 'package:care_mall_rider/src/core/utils/logger_service.dart';
 
 class AuthService {
   /// Sends OTP to the provided phone number
@@ -72,8 +73,7 @@ class AuthService {
 
       final responseData = jsonDecode(response.body);
 
-      // ignore: avoid_print
-      print('[AuthService] verifyOtp raw response: ${response.body}');
+      Log.debug('[AuthService] verifyOtp raw response: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         // Try every common token field name
@@ -91,8 +91,7 @@ class AuthService {
                     rawData['authToken'])
                 ?.toString();
 
-        // ignore: avoid_print
-        print(
+        Log.info(
           '[AuthService] Extracted token: ${token != null ? "YES (len=${token.length})" : "NULL — check field name!"}',
         );
 

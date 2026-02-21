@@ -5,11 +5,13 @@ import 'package:care_mall_rider/app/theme_data/app_colors.dart';
 import 'package:care_mall_rider/app/utils/network/auth_service.dart';
 import 'package:care_mall_rider/app/utils/spaces.dart';
 import 'package:care_mall_rider/gen/assets.gen.dart';
-import 'package:care_mall_rider/src/modules/kyc/kyc_verification_screen.dart';
+import 'package:care_mall_rider/src/modules/kyc/view/kyc_verification_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:care_mall_rider/src/core/services/storage_service.dart';
+import 'package:care_mall_rider/src/modules/home_screen/view/home_screen.dart';
+import 'package:care_mall_rider/src/modules/kyc/controller/kyc_repo.dart';
 
 class OTPVerificationScreen extends StatefulWidget {
   final String phoneNumber;
@@ -123,26 +125,49 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       if (!mounted) return;
 
       if (isSuccess) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message'] ?? 'OTP verified successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const KycVerificationScreen()),
-          (route) => false,
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              result['message'] ?? 'Invalid OTP. Please try again.',
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'OTP verified successfully!'),
+              backgroundColor: Colors.green,
             ),
-            backgroundColor: Colors.red,
-          ),
-        );
+          );
+        }
+        if (isSuccess) {
+          // Check KYC status before navigating
+          final kycResult = await KycRepo.getKycStatus();
+          bool isKycDone = false;
+          if (kycResult['success'] == true) {
+            final status = kycResult['status']?.toString().toLowerCase();
+            if (status == 'verified' || status == 'under_review') {
+              isKycDone = true;
+              await StorageService.saveKycCompleted(true);
+            }
+          }
+
+          if (mounted) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (_) => isKycDone
+                    ? const HomeScreen()
+                    : const KycVerificationScreen(),
+              ),
+              (route) => false,
+            );
+          }
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                result['message'] ?? 'Invalid OTP. Please try again.',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -324,9 +349,8 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                                 _otpControllers[index + i].text = digits[i];
                               }
 
-                              // Hide keyboard after paste
                               Future.microtask(() {
-                                if (mounted) FocusScope.of(context).unfocus();
+                                FocusManager.instance.primaryFocus?.unfocus();
                               });
 
                               return;

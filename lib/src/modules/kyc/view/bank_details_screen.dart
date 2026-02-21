@@ -3,7 +3,7 @@ import 'package:care_mall_rider/app/commenwidget/apptext.dart';
 import 'package:care_mall_rider/app/theme_data/app_colors.dart';
 import 'package:care_mall_rider/app/utils/spaces.dart';
 import 'package:care_mall_rider/app/utils/kyc_storage.dart';
-import 'package:care_mall_rider/src/modules/kyc/vehicle_selection_screen.dart';
+import 'package:care_mall_rider/src/modules/kyc/view/vehicle_selection_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -28,7 +28,6 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
   final _bankNameController = TextEditingController();
 
   // UPI controllers
-  final _upiIdController = TextEditingController();
   final _upiNumberController = TextEditingController();
 
   bool _isLoading = false;
@@ -39,7 +38,6 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
     _accountNumberController.dispose();
     _ifscController.dispose();
     _bankNameController.dispose();
-    _upiIdController.dispose();
     _upiNumberController.dispose();
     super.dispose();
   }
@@ -54,7 +52,7 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
         accountNumber: _accountNumberController.text,
         ifscCode: _ifscController.text,
         bankName: _bankNameController.text,
-        upiId: _upiIdController.text,
+        upiId: '',
         upiNumber: _upiNumberController.text,
       );
 
@@ -219,21 +217,6 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
 
             // ── UPI Fields ─────────────────────────────────────────────
             if (_paymentMode == 'upi') ...[
-              AppText(
-                text: 'UPI ID',
-                fontSize: 13.sp,
-                fontWeight: FontWeight.w500,
-                color: AppColors.textnaturalcolor,
-              ),
-              defaultSpacerSmall,
-              _InputField(
-                controller: _upiIdController,
-                hint: 'e.g. name@upi',
-                keyboardType: TextInputType.emailAddress,
-                validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
-              ),
-              SizedBox(height: 16.h),
-
               AppText(
                 text: 'UPI Registered Mobile Number',
                 fontSize: 13.sp,

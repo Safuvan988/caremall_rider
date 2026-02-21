@@ -1,0 +1,60 @@
+import 'package:get/get.dart';
+import 'package:care_mall_rider/src/modules/wallet/controller/wallet_repo.dart';
+import 'package:care_mall_rider/src/modules/wallet/model/wallet_model.dart';
+import 'package:care_mall_rider/src/modules/wallet/model/withdrawal_request_model.dart';
+import 'package:care_mall_rider/src/core/utils/logger_service.dart';
+
+class WalletController extends GetxController {
+  var isLoading = false.obs;
+  var walletData = Rxn<WalletModel>();
+  var withdrawalRequests = <WithdrawalRequest>[].obs;
+
+  @override
+  void onInit() {
+    super.onInit();
+    fetchWalletData();
+    fetchWithdrawalRequests();
+  }
+
+  Future<void> fetchWalletData() async {
+    try {
+      isLoading(true);
+      final data = await WalletRepo.getWalletData();
+      walletData.value = data;
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to fetch wallet data: $e');
+    } finally {
+      isLoading(false);
+    }
+  }
+
+  Future<void> requestWithdrawal(num amount) async {
+    try {
+      isLoading(true);
+      final result = await WalletRepo.requestWithdrawal(amount);
+      if (result['success']) {
+        Get.snackbar('Success', result['message'] ?? 'Withdrawal requested');
+        await fetchWalletData(); // Refresh data
+      } else {
+        Get.snackbar(
+          'Error',
+          result['message'] ?? 'Failed to request withdrawal',
+        );
+      }
+    } catch (e) {
+      Get.snackbar('Error', 'An error occurred: $e');
+    } finally {
+      isLoading(false);
+    }
+  }
+
+  Future<void> fetchWithdrawalRequests() async {
+    try {
+      final requests = await WalletRepo.getWithdrawalRequests();
+      withdrawalRequests.assignAll(requests);
+    } catch (e) {
+      // Optional: Handle error silently or show snackbar if important
+      Log.error('Error fetching withdrawal requests', error: e);
+    }
+  }
+}

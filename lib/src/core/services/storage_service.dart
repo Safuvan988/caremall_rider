@@ -6,6 +6,7 @@ class StorageService {
   static const String _phoneNumberKey = 'phone_number';
   static const String _userNameKey = 'user_name';
   static const String _userEmailKey = 'user_email';
+  static const String _kycCompletedKey = 'kyc_completed';
 
   static SharedPreferences? _prefs;
 
@@ -70,6 +71,18 @@ class StorageService {
     return prefs.getString(_userEmailKey);
   }
 
+  /// Mark KYC as completed
+  static Future<bool> saveKycCompleted(bool completed) async {
+    final prefs = await _instance;
+    return await prefs.setBool(_kycCompletedKey, completed);
+  }
+
+  /// Check if KYC has been completed
+  static Future<bool> isKycCompleted() async {
+    final prefs = await _instance;
+    return prefs.getBool(_kycCompletedKey) ?? false;
+  }
+
   /// Clear all authentication data
   static Future<bool> clearAuthData() async {
     final prefs = await _instance;
@@ -77,6 +90,7 @@ class StorageService {
     await prefs.remove(_phoneNumberKey);
     await prefs.remove(_userNameKey);
     await prefs.remove(_userEmailKey);
+    await prefs.remove(_kycCompletedKey);
     return true;
   }
 

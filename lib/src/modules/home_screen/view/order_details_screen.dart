@@ -1,11 +1,20 @@
+import 'dart:io';
 import 'package:care_mall_rider/app/app_buttons/app_buttons.dart';
 import 'package:care_mall_rider/app/commenwidget/apptext.dart';
 import 'package:care_mall_rider/app/theme_data/app_colors.dart';
+import 'package:care_mall_rider/src/modules/home_screen/controller/order_repo.dart';
+import 'package:care_mall_rider/src/modules/home_screen/model/delivery_order_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:get/get.dart';
+import 'package:care_mall_rider/src/modules/wallet/controller/wallet_controller.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
-  final Map<String, dynamic> order;
+  /// The order as fetched from the list. The screen will re-fetch the full
+  /// detail (including items) using [order.id] on load.
+  final DeliveryOrder order;
 
   const OrderDetailsScreen({super.key, required this.order});
 
@@ -14,20 +23,276 @@ class OrderDetailsScreen extends StatefulWidget {
 }
 
 class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
+  DeliveryOrder? _detail;
+  bool _loading = true;
+  String? _error;
   bool _paymentCollected = false;
+  bool _uploading = false;
+  bool _photoUploaded =
+      false; // Tracks if photo was uploaded in current session
+  bool _updatingStatus = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchDetail();
+  }
+
+  Future<void> _fetchDetail() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final detail = await OrderRepo.getOrderDetail(widget.order.id);
+      if (mounted) setState(() => _detail = detail);
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  DeliveryOrder get _display => _detail ?? widget.order;
+
+  Future<void> _uploadPhoto() async {
+    final picker = ImagePicker();
+    final choice = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 16.h, horizontal: 16.w),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40.w,
+                height: 4.h,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2.r),
+                ),
+              ),
+              SizedBox(height: 16.h),
+              AppText(
+                text: 'Upload Delivery Photo',
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w600,
+              ),
+              SizedBox(height: 16.h),
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: AppColors.primarylightcolor,
+                  radius: 20.r,
+                  child: Icon(
+                    Icons.camera_alt_outlined,
+                    color: AppColors.primarycolor,
+                    size: 20.sp,
+                  ),
+                ),
+                title: Text('Take Photo', style: TextStyle(fontSize: 16.sp)),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: const Color(0xFFE8F0FE),
+                  radius: 20.r,
+                  child: Icon(
+                    Icons.photo_library_outlined,
+                    color: const Color(0xFF4A6CF7),
+                    size: 20.sp,
+                  ),
+                ),
+                title: Text(
+                  'Choose from Gallery',
+                  style: TextStyle(fontSize: 16.sp),
+                ),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (choice == null) return;
+
+    final picked = await picker.pickImage(source: choice, imageQuality: 80);
+    if (picked == null) return;
+
+    if (!mounted) return;
+    setState(() => _uploading = true);
+
+    final result = await OrderRepo.uploadDeliveryPhoto(
+      orderId: widget.order.id,
+      photo: File(picked.path),
+    );
+
+    if (!mounted) return;
+    setState(() => _uploading = false);
+
+    if (result['success'] == true) {
+      setState(() => _photoUploaded = true);
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result['success'] == true
+              ? 'Photo uploaded successfully! You can now deliver.'
+              : result['message'] ?? 'Upload failed. Try again.',
+        ),
+        backgroundColor: result['success'] == true
+            ? Colors.green[700]
+            : Colors.red[700],
+      ),
+    );
+  }
+
+  Future<void> _reportFailedDelivery() async {
+    final TextEditingController reasonController = TextEditingController();
+
+    Get.dialog(
+      AlertDialog(
+        title: AppText(
+          text: 'Cannot Deliver',
+          fontSize: 18.sp,
+          fontWeight: FontWeight.w700,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AppText(
+              text: 'Please provide a reason for the delivery failure:',
+              fontSize: 14.sp,
+            ),
+            SizedBox(height: 12.h),
+            TextField(
+              controller: reasonController,
+              decoration: InputDecoration(
+                hintText: 'e.g., Customer unavailable',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8.r),
+                ),
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              final reason = reasonController.text.trim();
+              if (reason.isEmpty) {
+                Get.snackbar('Error', 'Please provide a reason.');
+                return;
+              }
+              Get.back();
+              setState(() => _updatingStatus = true);
+              final result = await OrderRepo.reportFailedOrder(
+                orderId: widget.order.id,
+                reason: reason,
+              );
+              if (mounted) setState(() => _updatingStatus = false);
+
+              if (result['success'] == true) {
+                Get.snackbar('Success', 'Delivery failure reported.');
+                _fetchDetail();
+              } else {
+                Get.snackbar(
+                  'Error',
+                  result['message'] ?? 'Failed to report failure.',
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.errorMain,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Report'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deliverOrder() async {
+    // If it's a COD order, ensure payment collected is checked
+    final bool isCod = _display.isCod;
+    if (isCod && !_paymentCollected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please confirm payment collection for COD order.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Confirm before marking delivered
+    final confirmed = await Get.dialog<bool>(
+      AlertDialog(
+        title: AppText(
+          text: 'Confirm Delivery',
+          fontSize: 18.sp,
+          fontWeight: FontWeight.w700,
+        ),
+        content: AppText(
+          text: 'Mark this order as delivered?',
+          fontSize: 14.sp,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Get.back(result: true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primarycolor,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Deliver'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _updatingStatus = true);
+    final result = await OrderRepo.updateOrderStatus(
+      orderId: widget.order.id,
+      status: 'delivered',
+    );
+    if (mounted) setState(() => _updatingStatus = false);
+
+    if (result['success'] == true) {
+      Get.snackbar(
+        'Success',
+        'Order delivered successfully!',
+        backgroundColor: Colors.green[700],
+        colorText: Colors.white,
+      );
+      _fetchDetail();
+      // Refresh wallet balance
+      try {
+        if (Get.isRegistered<WalletController>()) {
+          Get.find<WalletController>().fetchWalletData();
+        }
+      } catch (_) {}
+    } else {
+      Get.snackbar('Error', result['message'] ?? 'Failed to update status.');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Determine if it is PrePaid or COD based on the order data
-    final bool isPrePaid = widget.order['isPrePaid'] ?? false;
-    // For demo purposes, let's assume if it's PrePaid, there might be special instructions
-    // In a real app, this would come from the API/order object.
-    // Let's verify 'buttonText' from HomeScreen data to mock this behavior if needed,
-    // or just assume PrePaid orders have instructions for this task.
-    final String? specialInstructions = isPrePaid
-        ? "Leave the package at the door if no one answers. call before arrival"
-        : null;
-
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -51,65 +316,502 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           color: AppColors.textnaturalcolor,
         ),
       ),
-      body: Column(
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+          ? _buildErrorState()
+          : _buildContent(_detail!),
+    );
+  }
+
+  // ── Error state ────────────────────────────────────────────────────────────
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.all(16.w),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Order ID Header
-                  AppText(
-                    text: 'Order ID : ${widget.order['id']}',
-                    fontSize: 18.sp,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textnaturalcolor,
-                  ),
-                  SizedBox(height: 24.h),
+          Icon(Icons.wifi_off_rounded, size: 48.sp, color: Colors.grey[400]),
+          SizedBox(height: 12.h),
+          AppText(
+            text: 'Could not load order details',
+            fontSize: 14.sp,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey[600]!,
+          ),
+          SizedBox(height: 8.h),
+          TextButton.icon(
+            onPressed: _fetchDetail,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
 
-                  // Customer Details Card
-                  _buildCustomerDetailsCard(),
-                  SizedBox(height: 16.h),
+  // ── Main content ───────────────────────────────────────────────────────────
 
-                  // Payment Details Card
-                  _buildPaymentDetailsCard(isPrePaid),
-                  SizedBox(height: 16.h),
+  Widget _buildContent(DeliveryOrder order) {
+    final bool isCod = order.isCod;
+    final bool isCompleted =
+        order.orderStatus == 'delivered' || order.orderStatus == 'cancelled';
 
-                  // Special Instructions (Only if PrePaid/Exists)
-                  if (specialInstructions != null) ...[
-                    _buildSpecialInstructionsCard(specialInstructions),
-                    SizedBox(height: 16.h),
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(16.w),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Order ID + status ─────────────────────────────────────
+                Row(
+                  children: [
+                    Expanded(
+                      child: AppText(
+                        text: 'Order ID : ${order.orderId}',
+                        fontSize: 17.sp,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textnaturalcolor,
+                      ),
+                    ),
+                    _buildStatusBadge(order.orderStatus),
                   ],
+                ),
+                SizedBox(height: 20.h),
 
-                  // Package Details Card
-                  _buildPackageDetailsCard(),
+                // ── Customer Details ──────────────────────────────────────
+                _buildCustomerCard(order.shippingAddress),
+                SizedBox(height: 16.h),
+
+                // ── Payment Details ───────────────────────────────────────
+                _buildPaymentCard(isCod, order.totalAmount),
+                SizedBox(height: 16.h),
+
+                // ── Dispatch Details ──────────────────────────────────────
+                if (order.dispatch != null) ...[
+                  _buildDispatchCard(order.dispatch!),
+                  SizedBox(height: 16.h),
+                ],
+
+                // ── Items / Package Details ───────────────────────────────
+                if (order.items.isNotEmpty) ...[
+                  _buildItemsCard(order.items),
                   SizedBox(height: 24.h),
                 ],
-              ),
+              ],
             ),
           ),
+        ),
 
-          // Bottom Action Buttons
-          Container(
-            padding: EdgeInsets.all(16.w),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, -5),
+        // ── Bottom Action Buttons ─────────────────────────────────────────
+        _buildBottomBar(isCompleted),
+      ],
+    );
+  }
+
+  // ── Status Badge ───────────────────────────────────────────────────────────
+
+  Widget _buildStatusBadge(String status) {
+    Color bg;
+    Color fg;
+    switch (status.toLowerCase()) {
+      case 'delivered':
+        bg = const Color(0xFFE6F4EE);
+        fg = const Color(0xFF1E7E4C);
+        break;
+      case 'cancelled':
+      case 'failed':
+        bg = const Color(0xFFFFE3E3);
+        fg = Colors.red;
+        break;
+      case 'out_for_delivery':
+      case 'shipped':
+      case 'dispatched':
+        bg = const Color(0xFFE8F0FE);
+        fg = const Color(0xFF1A56DB);
+        break;
+      default:
+        bg = const Color(0xFFFFF3E0);
+        fg = const Color(0xFFE65100);
+    }
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20.r),
+      ),
+      child: AppText(
+        text: status.replaceAll('_', ' ').toUpperCase(),
+        fontSize: 11.sp,
+        fontWeight: FontWeight.w700,
+        color: fg,
+      ),
+    );
+  }
+
+  // ── Customer Card ──────────────────────────────────────────────────────────
+
+  Widget _buildCustomerCard(ShippingAddress addr) {
+    final address = [
+      addr.addressLine1,
+      if (addr.addressLine2.isNotEmpty) addr.addressLine2,
+      addr.city,
+      addr.state,
+      addr.postalCode,
+      if (addr.landmark.isNotEmpty) 'Near ${addr.landmark}',
+    ].where((s) => s.isNotEmpty).join(', ');
+
+    return _buildCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionLabel('Customer Details'),
+          SizedBox(height: 8.h),
+          AppText(
+            text: addr.fullName,
+            fontSize: 16.sp,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textnaturalcolor,
+          ),
+          SizedBox(height: 2.h),
+          _infoRow(Icons.phone_outlined, addr.phone),
+          SizedBox(height: 4.h),
+          _infoRow(Icons.location_on_outlined, address, maxLines: 3),
+          SizedBox(height: 16.h),
+          Row(
+            children: [
+              Expanded(
+                child: _buildOutlineButton(
+                  icon: Icons.location_on_outlined,
+                  label: 'View on Maps',
+                  onTap: () {},
+                ),
+              ),
+              SizedBox(width: 12.w),
+              Expanded(
+                child: _buildOutlineButton(
+                  icon: Icons.phone_outlined,
+                  label: 'Call Customer',
+                  onTap: () async {
+                    final phone = addr.phone.trim();
+                    if (phone.isEmpty) return;
+                    final uri = Uri(scheme: 'tel', path: phone);
+                    try {
+                      await launchUrl(uri);
+                    } catch (_) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Could not launch dialler.'),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Payment Card ───────────────────────────────────────────────────────────
+
+  Widget _buildPaymentCard(bool isCod, double totalAmount) {
+    return _buildCard(
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _sectionLabel('Payment Details'),
+                  SizedBox(height: 4.h),
+                  AppText(
+                    text: 'Payment Method',
+                    fontSize: 14.sp,
+                    color: AppColors.textnaturalcolor,
+                  ),
+                ],
+              ),
+              if (isCod)
+                AppText(
+                  text: 'Cash on Delivery',
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textnaturalcolor,
+                )
+              else
+                AppText(
+                  text: 'Pre Paid',
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPositiveSecondarycolor,
+                ),
+            ],
+          ),
+          if (isCod) ...[
+            SizedBox(height: 12.h),
+            Divider(color: Colors.grey[200]),
+            SizedBox(height: 12.h),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                AppText(
+                  text: _display.orderStatus.toLowerCase() == 'delivered'
+                      ? 'Amount Collected'
+                      : 'Amount To Collect',
+                  fontSize: 14.sp,
+                  color: Colors.grey[600]!,
+                ),
+                AppText(
+                  text: '₹ ${totalAmount.toStringAsFixed(0)}',
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                  color: _display.orderStatus.toLowerCase() == 'delivered'
+                      ? AppColors.textPositiveSecondarycolor
+                      : AppColors.ratingYellowcolor,
                 ),
               ],
             ),
-            child: Row(
+            SizedBox(height: 12.h),
+            if (_display.orderStatus.toLowerCase() != 'delivered') ...[
+              Divider(color: Colors.grey[200]),
+              SizedBox(height: 12.h),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  AppText(
+                    text: 'Payment Collected',
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textnaturalcolor,
+                  ),
+                  Transform.scale(
+                    scale: 0.8,
+                    child: Switch(
+                      value: _paymentCollected,
+                      onChanged: (val) =>
+                          setState(() => _paymentCollected = val),
+                      thumbColor: const WidgetStatePropertyAll(Colors.white),
+                      trackColor: WidgetStateProperty.resolveWith<Color?>((
+                        states,
+                      ) {
+                        if (states.contains(WidgetState.selected)) {
+                          return AppColors.primarycolor;
+                        }
+                        return Colors.grey[300];
+                      }),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ── Dispatch Card ──────────────────────────────────────────────────────────
+
+  Widget _buildDispatchCard(DispatchInfo dispatch) {
+    return _buildCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionLabel('Dispatch Details'),
+          SizedBox(height: 12.h),
+          _detailRow(
+            'Status',
+            dispatch.status.replaceAll('_', ' ').toUpperCase(),
+          ),
+          SizedBox(height: 8.h),
+          _detailRow('Vehicle', dispatch.vehicleNumber),
+          SizedBox(height: 8.h),
+          _detailRow('Packages', '${dispatch.totalPackages}'),
+          SizedBox(height: 8.h),
+          _detailRow('Weight', '${dispatch.totalWeight.toStringAsFixed(0)} g'),
+          if (dispatch.dispatchDate != null) ...[
+            SizedBox(height: 8.h),
+            _detailRow(
+              'Dispatch Date',
+              '${dispatch.dispatchDate!.day}/${dispatch.dispatchDate!.month}/${dispatch.dispatchDate!.year}',
+            ),
+          ],
+          SizedBox(height: 8.h),
+          _detailRow('Destination', dispatch.destination),
+        ],
+      ),
+    );
+  }
+
+  // ── Items Card ─────────────────────────────────────────────────────────────
+
+  Widget _buildItemsCard(List<OrderItem> items) {
+    return _buildCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionLabel('Package Details'),
+          SizedBox(height: 12.h),
+          ...List.generate(items.length, (i) {
+            final item = items[i];
+            return Column(
+              children: [
+                if (i > 0) Divider(color: Colors.grey[200], height: 24.h),
+                _buildItemRow(item),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItemRow(OrderItem item) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Product image
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8.r),
+          child: item.productImage != null && item.productImage!.isNotEmpty
+              ? Image.network(
+                  item.productImage!,
+                  width: 54.w,
+                  height: 54.w,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => _itemPlaceholder(),
+                  loadingBuilder: (_, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return _itemPlaceholder(isLoading: true);
+                  },
+                )
+              : _itemPlaceholder(),
+        ),
+        SizedBox(width: 12.w),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AppText(
+                text:
+                    'Product #${item.productId.substring(item.productId.length > 8 ? item.productId.length - 8 : 0)}',
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textnaturalcolor,
+              ),
+              SizedBox(height: 2.h),
+              AppText(
+                text: 'Qty: ${item.quantity}',
+                fontSize: 12.sp,
+                color: Colors.grey[500]!,
+              ),
+            ],
+          ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            AppText(
+              text: '₹ ${item.totalPrice.toStringAsFixed(0)}',
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textnaturalcolor,
+            ),
+            SizedBox(height: 2.h),
+            AppText(
+              text: 'MRP ₹ ${item.mrpPrice.toStringAsFixed(0)}',
+              fontSize: 11.sp,
+              color: Colors.grey[400]!,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _itemPlaceholder({bool isLoading = false}) {
+    return Container(
+      width: 54.w,
+      height: 54.w,
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(8.r),
+      ),
+      child: isLoading
+          ? Center(
+              child: SizedBox(
+                width: 20.w,
+                height: 20.w,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.grey[400],
+                ),
+              ),
+            )
+          : Icon(
+              Icons.inventory_2_outlined,
+              size: 24.sp,
+              color: Colors.grey[400],
+            ),
+    );
+  }
+
+  // ── Bottom Bar ─────────────────────────────────────────────────────────────
+
+  Widget _buildBottomBar(bool isCompleted) {
+    return Container(
+      padding: EdgeInsets.all(16.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: isCompleted
+          ? Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(vertical: 14.h),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE6F4EE),
+                borderRadius: BorderRadius.circular(8.r),
+                border: Border.all(color: const Color(0xFFB3E0CE)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.check_circle,
+                    color: const Color(0xFF1E7E4C),
+                    size: 20.sp,
+                  ),
+                  SizedBox(width: 8.w),
+                  AppText(
+                    text: 'Delivered',
+                    color: const Color(0xFF1E7E4C),
+                    fontSize: 15.sp,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ],
+              ),
+            )
+          : Row(
               children: [
                 Expanded(
                   child: AppButton(
-                    onPressed: () {
-                      // Handle Cannot Deliver
-                    },
+                    onPressed: _updatingStatus ? null : _reportFailedDelivery,
                     btncolor: Colors.white,
                     borderRadius: 8.r,
                     buttonStyle: ButtonStyle(
@@ -132,29 +834,68 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                     ),
                   ),
                 ),
-                SizedBox(width: 16.w),
+                SizedBox(width: 12.w),
                 Expanded(
                   child: AppButton(
-                    onPressed: () {
-                      // Handle Delivery OTP
-                    },
+                    onPressed: _uploading || _updatingStatus
+                        ? null
+                        : (_photoUploaded
+                              ? (_display.isCod && !_paymentCollected
+                                    ? null
+                                    : _deliverOrder)
+                              : _uploadPhoto),
                     btncolor: AppColors.primarycolor,
                     borderRadius: 8.r,
-                    child: AppText(
-                      text: 'Delivery OTP',
-                      color: Colors.white,
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w600,
+                    buttonStyle: ButtonStyle(
+                      backgroundColor: WidgetStateProperty.all(
+                        (_photoUploaded && _display.isCod && !_paymentCollected)
+                            ? Colors.grey
+                            : AppColors.primarycolor,
+                      ),
+                      shape: WidgetStateProperty.all(
+                        RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8.r),
+                        ),
+                      ),
                     ),
+                    child: (_uploading || _updatingStatus)
+                        ? SizedBox(
+                            width: 20.w,
+                            height: 20.w,
+                            child: const CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                _photoUploaded
+                                    ? Icons.check_circle_outline
+                                    : Icons.camera_alt_outlined,
+                                size: 16.sp,
+                                color: Colors.white,
+                              ),
+                              SizedBox(width: 6.w),
+                              AppText(
+                                text: _photoUploaded
+                                    ? 'Deliver Order'
+                                    : 'Upload Photo',
+                                color: Colors.white,
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ],
+                          ),
                   ),
                 ),
               ],
             ),
-          ),
-        ],
-      ),
     );
   }
+
+  // ── Shared helpers ─────────────────────────────────────────────────────────
 
   Widget _buildCard({required Widget child}) {
     return Container(
@@ -169,223 +910,49 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     );
   }
 
-  Widget _buildCustomerDetailsCard() {
-    return _buildCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AppText(
-            text: 'Customer Details',
-            fontSize: 12.sp,
-            color: Colors.grey[500]!,
-          ),
-          SizedBox(height: 8.h),
-          AppText(
-            text: 'Sarah James', // Mock name match screenshot
-            fontSize: 16.sp,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textnaturalcolor,
-          ),
-          SizedBox(height: 4.h),
-          AppText(
-            text: 'XYZ Mall GHI Road, Cochin, 682016',
-            fontSize: 13.sp,
-            color: Colors.grey[600]!,
-            maxLines: 2,
-          ),
-          SizedBox(height: 16.h),
-          Row(
-            children: [
-              Expanded(
-                child: _buildOutlineButton(
-                  icon: Icons.location_on_outlined,
-                  label: 'View on Maps',
-                  onTap: () {},
-                ),
-              ),
-              SizedBox(width: 12.w),
-              Expanded(
-                child: _buildOutlineButton(
-                  icon: Icons.phone_outlined,
-                  label: 'Call Customer',
-                  onTap: () {},
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+  Widget _sectionLabel(String text) {
+    return AppText(
+      text: text,
+      fontSize: 12.sp,
+      color: Colors.grey[500]!,
+      fontWeight: FontWeight.w500,
     );
   }
 
-  Widget _buildPaymentDetailsCard(bool isPrePaid) {
-    return _buildCard(
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AppText(
-                    text: 'Payment Details',
-                    fontSize: 12.sp,
-                    color: Colors.grey[500]!,
-                  ),
-                  SizedBox(height: 4.h),
-                  AppText(
-                    text: 'Payment Method',
-                    fontSize: 14.sp,
-                    color: AppColors.textnaturalcolor,
-                  ),
-                ],
-              ),
-              if (isPrePaid)
-                AppText(
-                  text: 'Pre Paid',
-                  fontSize: 14.sp,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPositiveSecondarycolor,
-                )
-              else
-                AppText(
-                  text: 'Cash on Delivery',
-                  fontSize: 14.sp,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textnaturalcolor,
-                ),
-            ],
-          ),
-          if (!isPrePaid) ...[
-            SizedBox(height: 12.h),
-            Divider(color: Colors.grey[200]),
-            SizedBox(height: 12.h),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                AppText(
-                  text: 'Amount To Collect',
-                  fontSize: 14.sp,
-                  color: Colors.grey[600]!,
-                ),
-                AppText(
-                  text: widget.order['amount'] ?? '₹ 0',
-                  fontSize: 16.sp,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors
-                      .ratingYellowcolor, // Matches gold color in screenshot
-                ),
-              ],
-            ),
-            SizedBox(height: 12.h),
-            Divider(color: Colors.grey[200]),
-            SizedBox(height: 12.h),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                AppText(
-                  text: 'Payment Collected',
-                  fontSize: 14.sp,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textnaturalcolor,
-                ),
-                Transform.scale(
-                  scale: 0.8,
-                  child: Switch(
-                    value: _paymentCollected,
-                    onChanged: (val) => setState(() => _paymentCollected = val),
-                    thumbColor: const WidgetStatePropertyAll(Colors.white),
-                    trackColor: WidgetStateProperty.resolveWith<Color?>((
-                      states,
-                    ) {
-                      if (states.contains(WidgetState.selected)) {
-                        return Colors.red;
-                      }
-                      return Colors.grey[300];
-                    }),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSpecialInstructionsCard(String instructions) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(16.w),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF9EE), // Light yellow bg from screenshot
-        borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: const Color(0xFFFFDFA6)), // Gold border
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.info_outline,
-                size: 16.sp,
-                color: const Color(0xFFA67118), // Brown/Gold text
-              ),
-              SizedBox(width: 8.w),
-              AppText(
-                text: 'Special Instructions',
-                fontSize: 13.sp,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFFA67118),
-              ),
-            ],
-          ),
-          SizedBox(height: 8.h),
-          AppText(
-            text: instructions,
-            fontSize: 13.sp,
-            color: const Color(0xFFA67118),
-            maxLines: 3,
-            fontWeight: FontWeight.w500,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPackageDetailsCard() {
-    return _buildCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AppText(
-            text: 'Package Details',
-            fontSize: 12.sp,
-            color: Colors.grey[500]!,
-          ),
-          SizedBox(height: 12.h),
-          _buildPackageItem('Noise colorfit pro 4', '1'),
-          Divider(color: Colors.grey[200], height: 24.h),
-          _buildPackageItem('Silicon case for iPhone 16', '1'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPackageItem(String name, String qty) {
-    return Column(
+  Widget _infoRow(IconData icon, String text, {int maxLines = 2}) {
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppText(
-          text: name,
-          fontSize: 15.sp,
-          fontWeight: FontWeight.w500,
-          color: AppColors.textnaturalcolor,
+        Icon(icon, size: 14.sp, color: Colors.grey[500]),
+        SizedBox(width: 6.w),
+        Expanded(
+          child: AppText(
+            text: text,
+            fontSize: 13.sp,
+            color: Colors.grey[600]!,
+            maxLines: maxLines,
+          ),
         ),
-        SizedBox(height: 4.h),
-        AppText(text: 'Qty:$qty', fontSize: 13.sp, color: Colors.grey[500]!),
+      ],
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppText(text: label, fontSize: 13.sp, color: Colors.grey[500]!),
+        SizedBox(width: 12.w),
+        Flexible(
+          child: AppText(
+            text: value,
+            fontSize: 13.sp,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textnaturalcolor,
+            maxLines: 2,
+          ),
+        ),
       ],
     );
   }
@@ -401,17 +968,13 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         padding: EdgeInsets.symmetric(vertical: 10.h),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(6.r),
-          border: Border.all(color: Colors.red), // Red border
+          border: Border.all(color: Colors.grey[300]!),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 16.sp,
-              color: Colors.grey[600],
-            ), // Grey icon as per screenshot
-            SizedBox(width: 8.w),
+            Icon(icon, size: 16.sp, color: Colors.grey[600]),
+            SizedBox(width: 6.w),
             AppText(
               text: label,
               fontSize: 13.sp,

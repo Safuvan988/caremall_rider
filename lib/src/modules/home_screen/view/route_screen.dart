@@ -1,12 +1,179 @@
-import 'dart:async';
+import 'dart:convert';
 
 import 'package:care_mall_rider/app/commenwidget/apptext.dart';
 import 'package:care_mall_rider/app/theme_data/app_colors.dart';
-import 'package:care_mall_rider/src/modules/home_screen/view/order_details_screen.dart';
+import 'package:care_mall_rider/app/utils/network/apiurls.dart';
+import 'package:care_mall_rider/src/core/services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:http/http.dart' as http;
+
+// ─────────────────────────────────────────────
+// Model
+// ─────────────────────────────────────────────
+
+class RouteStop {
+  final String orderId;
+  final String customerName;
+  final String address;
+  final String phone;
+  final String status;
+  final int stopNumber;
+  final double? lat;
+  final double? lng;
+
+  const RouteStop({
+    required this.orderId,
+    required this.customerName,
+    required this.address,
+    required this.phone,
+    required this.status,
+    required this.stopNumber,
+    this.lat,
+    this.lng,
+  });
+
+  factory RouteStop.fromJson(Map<String, dynamic> json) {
+    // Safe map extraction – avoids 'List is not a subtype of Map' crashes
+    Map<String, dynamic> safeMap(dynamic v) =>
+        v is Map<String, dynamic> ? v : {};
+
+    num? safeNum(dynamic v) => v is num ? v : null;
+
+    final customer = safeMap(json['customer']);
+    final location = safeMap(
+      json['deliveryAddress'] ?? json['location'] ?? json['address'],
+    );
+
+    return RouteStop(
+      orderId:
+          json['orderId']?.toString() ??
+          json['_id']?.toString() ??
+          json['id']?.toString() ??
+          '-',
+      customerName:
+          customer['name']?.toString() ??
+          json['customerName']?.toString() ??
+          'Unknown',
+      address:
+          location['street']?.toString() ??
+          location['address']?.toString() ??
+          location['fullAddress']?.toString() ??
+          (json['address'] is String ? json['address'].toString() : null) ??
+          '-',
+      phone: customer['phone']?.toString() ?? json['phone']?.toString() ?? '-',
+      status: json['status']?.toString() ?? '-',
+      stopNumber:
+          safeNum(json['stopNumber'])?.toInt() ??
+          safeNum(json['stop'])?.toInt() ??
+          0,
+      lat:
+          safeNum(json['lat'])?.toDouble() ??
+          safeNum(location['lat'])?.toDouble(),
+      lng:
+          safeNum(json['lng'])?.toDouble() ??
+          safeNum(location['lng'])?.toDouble(),
+    );
+  }
+}
+
+class TodayRoute {
+  final int totalStops;
+  final int remainingStops;
+  final double totalDistanceKm;
+  final int etaMinutes;
+  final List<RouteStop> stops;
+
+  const TodayRoute({
+    required this.totalStops,
+    required this.remainingStops,
+    required this.totalDistanceKm,
+    required this.etaMinutes,
+    required this.stops,
+  });
+
+  factory TodayRoute.fromJson(Map<String, dynamic> json) {
+    // Try multiple common root keys for the stops list
+    final raw =
+        json['stops'] ?? json['orders'] ?? json['route'] ?? json['data'] ?? [];
+    final rawStops = raw is List ? raw : <dynamic>[];
+
+    final stops = rawStops
+        .map((e) => RouteStop.fromJson(e as Map<String, dynamic>))
+        .toList();
+
+    return TodayRoute(
+      totalStops: (json['totalStops'] as num?)?.toInt() ?? stops.length,
+      remainingStops:
+          (json['remainingStops'] as num?)?.toInt() ??
+          stops.where((s) => s.status != 'delivered').length,
+      totalDistanceKm:
+          (json['totalDistanceKm'] ?? json['totalDistance'] as num?)
+              ?.toDouble() ??
+          0.0,
+      etaMinutes: (json['etaMinutes'] ?? json['eta'] as num?)?.toInt() ?? 0,
+      stops: stops,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// Repo helper
+// ─────────────────────────────────────────────
+
+Future<TodayRoute> fetchTodayRoute({
+  double lat = 11.2588,
+  double lng = 75.7804,
+}) async {
+  final token = await StorageService.getAuthToken();
+  final uri = Uri.parse(
+    ApiUrls.todayRoute,
+  ).replace(queryParameters: {'lat': lat.toString(), 'lng': lng.toString()});
+
+  final response = await http.get(
+    uri,
+    headers: {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    },
+  );
+
+  if (response.statusCode == 200) {
+    try {
+      final decoded = jsonDecode(response.body);
+
+      // API may return a bare List or a Map wrapping the stops
+      if (decoded is List) {
+        return TodayRoute.fromJson({'stops': decoded});
+      }
+
+      if (decoded is Map<String, dynamic>) {
+        // Try common wrapper keys for the stops list
+        final inner = decoded['route'] ?? decoded['data'];
+        if (inner is List) {
+          return TodayRoute.fromJson({'stops': inner});
+        }
+        if (inner is Map<String, dynamic>) {
+          return TodayRoute.fromJson(inner);
+        }
+        // Fall back: treat the whole body as the route object
+        return TodayRoute.fromJson(decoded);
+      }
+
+      throw Exception('Unexpected JSON shape: ${response.body}');
+    } catch (e) {
+      // Re-throw with raw body so the error screen shows useful info
+      throw Exception('Parse error: $e\n\nRaw response:\n${response.body}');
+    }
+  } else {
+    throw Exception('HTTP ${response.statusCode}: ${response.body}');
+  }
+}
+
+// ─────────────────────────────────────────────
+// Screen
+// ─────────────────────────────────────────────
 
 class RouteScreen extends StatefulWidget {
   const RouteScreen({super.key});
@@ -16,338 +183,419 @@ class RouteScreen extends StatefulWidget {
 }
 
 class _RouteScreenState extends State<RouteScreen> {
-  final Completer<GoogleMapController> _controller =
-      Completer<GoogleMapController>();
+  late Future<TodayRoute> _routeFuture;
 
-  static const CameraPosition _kGooglePlex = CameraPosition(
-    target: LatLng(9.9312, 76.2673), // Cochin coordinates
-    zoom: 14.4746,
-  );
+  @override
+  void initState() {
+    super.initState();
+    _routeFuture = fetchTodayRoute();
+  }
+
+  void _refresh() {
+    setState(() {
+      _routeFuture = fetchTodayRoute();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          // 1. Map (Background)
-          SizedBox(
-            height: double.infinity,
-            width: double.infinity,
-            child: GoogleMap(
-              mapType: MapType.normal,
-              initialCameraPosition: _kGooglePlex,
-              onMapCreated: (GoogleMapController controller) {
-                _controller.complete(controller);
-              },
-              zoomControlsEnabled: false,
-              myLocationEnabled: true,
-              myLocationButtonEnabled: false,
-            ),
-          ),
+      backgroundColor: Colors.white,
+      body: FutureBuilder<TodayRoute>(
+        future: _routeFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-          // 2. Top Card "Route for Today"
-          Positioned(
-            top: 16.h,
-            left: 16.w,
-            right: 16.w,
-            child: SafeArea(
-              child: Container(
-                padding: EdgeInsets.all(16.w),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12.r),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: EdgeInsets.all(24.w),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.error_outline, color: Colors.red, size: 48.sp),
+                    SizedBox(height: 12.h),
+                    AppText(
+                      text: 'Could not load today\'s route.',
+                      fontSize: 16.sp,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textnaturalcolor,
+                    ),
+                    SizedBox(height: 8.h),
+                    AppText(
+                      text: snapshot.error.toString(),
+                      fontSize: 12.sp,
+                      color: Colors.grey,
+                    ),
+                    SizedBox(height: 20.h),
+                    ElevatedButton.icon(
+                      onPressed: _refresh,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10.r),
+                        ),
+                      ),
                     ),
                   ],
                 ),
+              ),
+            );
+          }
+
+          final route = snapshot.data!;
+          return _RouteBody(route: route, onRefresh: _refresh);
+        },
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// Body (split out for clarity)
+// ─────────────────────────────────────────────
+
+class _RouteBody extends StatelessWidget {
+  final TodayRoute route;
+  final VoidCallback onRefresh;
+
+  const _RouteBody({required this.route, required this.onRefresh});
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: () async => onRefresh(),
+      color: Colors.red,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          // ── Summary Card ──────────────────────────────
+          SliverToBoxAdapter(
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 0),
+                child: _SummaryCard(route: route),
+              ),
+            ),
+          ),
+
+          // ── Section header ────────────────────────────
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  AppText(
+                    text: 'Stops',
+                    fontSize: 17.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textnaturalcolor,
+                  ),
+                  AppText(
+                    text: '${route.stops.length} total',
+                    fontSize: 13.sp,
+                    color: Colors.grey[500]!,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ── Empty state ───────────────────────────────
+          if (route.stops.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    AppText(
-                      text: 'Route for Today',
-                      fontSize: 12.sp,
-                      color: Colors.grey[600]!,
+                    Icon(
+                      Icons.route_outlined,
+                      size: 64.sp,
+                      color: Colors.grey[300],
                     ),
-                    SizedBox(height: 4.h),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        AppText(
-                          text: '4 Stops Remaining',
-                          fontSize: 18.sp,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textnaturalcolor,
-                        ),
-                        AppText(
-                          text: '12.5 KM',
-                          fontSize: 18.sp,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.red,
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 4.h),
+                    SizedBox(height: 16.h),
                     AppText(
-                      text: 'ETA 56 Mins',
-                      fontSize: 12.sp,
-                      color: Colors.grey[600]!,
+                      text: 'No stops for today',
+                      fontSize: 16.sp,
+                      color: Colors.grey[500]!,
                     ),
                   ],
                 ),
               ),
             ),
-          ),
 
-          // 3. Bottom Sheet (Draggable or Fixed)
-          // Using DraggableScrollableSheet for realistic feel
-          DraggableScrollableSheet(
-            initialChildSize: 0.45,
-            minChildSize: 0.45,
-            maxChildSize: 0.8,
-            builder: (context, scrollController) {
-              return Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(20.r),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, -2),
-                    ),
-                  ],
-                ),
-                child: ListView(
-                  controller: scrollController,
-                  padding: EdgeInsets.all(16.w),
-                  children: [
-                    // Handle Bar
-                    Center(
-                      child: Container(
-                        width: 40.w,
-                        height: 4.h,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(2.r),
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 16.h),
-
-                    // Current Order Section
-                    AppText(
-                      text: 'Order ID : #ORD123456455',
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textnaturalcolor,
-                    ),
-                    SizedBox(height: 4.h),
-                    AppText(
-                      text: 'Sarah James',
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textnaturalcolor,
-                    ),
-                    AppText(
-                      text: 'XYZ Mall GHI Road, Cochin, 682016',
-                      fontSize: 13.sp,
-                      color: Colors.grey[600]!,
-                    ),
-                    SizedBox(height: 16.h),
-
-                    // Buttons
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              // Mock navigation to details
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => OrderDetailsScreen(
-                                    order: {
-                                      'id': '#ORD123456455',
-                                      'distance': '15 KM',
-                                      'time': '11:00 AM - 1:00 PM',
-                                      'address':
-                                          'Sarah James, XYZ Mall GHI Road, Cochin, 682016',
-                                      'amount': '',
-                                      'isPrePaid': true,
-                                      'buttonText':
-                                          'View Details', // Changed to View Details as per logic
-                                    },
-                                  ),
-                                ),
-                              );
-                            },
-                            icon: Icon(
-                              Icons.inventory_2_outlined,
-                              size: 18.sp,
-                              color: Colors.black,
-                            ),
-                            label: AppText(
-                              text: 'View Details',
-                              fontSize: 13.sp,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: Colors.grey[300]!),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8.r),
-                              ),
-                              padding: EdgeInsets.symmetric(vertical: 12.h),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 12.w),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {},
-                            icon: Icon(
-                              Icons.phone_outlined,
-                              size: 18.sp,
-                              color: Colors.black,
-                            ),
-                            label: AppText(
-                              text: 'Call Customer',
-                              fontSize: 13.sp,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: Colors.grey[300]!),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8.r),
-                              ),
-                              padding: EdgeInsets.symmetric(vertical: 12.h),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 24.h),
-
-                    // Next Stop Section
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        AppText(
-                          text: 'Next Stop',
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textnaturalcolor,
-                        ),
-                        TextButton(
-                          onPressed: () {},
-                          child: AppText(
-                            text: 'View All',
-                            fontSize: 12.sp,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.red,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 8.h),
-
-                    // List of next stops (Mock)
-                    _buildNextStopItem(
-                      id: '#ORD123456455',
-                      name: 'Sarah James',
-                      address: 'XYZ Mall GHI Road, Cochin',
-                      eta: '12 Mins',
-                    ),
-                    SizedBox(height: 12.h),
-                    _buildNextStopItem(
-                      id: '#ORD123456455',
-                      name: 'Sarah James',
-                      address: 'XYZ Mall GHI Road, Cochin',
-                      eta: '12 Mins',
-                    ),
-                    SizedBox(height: 12.h),
-                    _buildNextStopItem(
-                      id: '#ORD123456455',
-                      name: 'Sarah James',
-                      address: 'XYZ Mall GHI Road, Cochin',
-                      eta: '12 Mins',
-                    ),
-                  ],
-                ),
-              );
-            },
+          // ── Stops list ────────────────────────────────
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 32.h),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final stop = route.stops[index];
+                return Padding(
+                  padding: EdgeInsets.only(bottom: 12.h),
+                  child: _StopCard(stop: stop, index: index),
+                );
+              }, childCount: route.stops.length),
+            ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildNextStopItem({
-    required String id,
-    required String name,
-    required String address,
-    required String eta,
-  }) {
+// ─────────────────────────────────────────────
+// Summary Card
+// ─────────────────────────────────────────────
+
+class _SummaryCard extends StatelessWidget {
+  final TodayRoute route;
+
+  const _SummaryCard({required this.route});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(12.w),
+      padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: Colors.grey[200]!),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFE53935), Color(0xFFEF6C00)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16.r),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.red.withValues(alpha: 0.25),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppText(
+            text: 'Route for Today',
+            fontSize: 12.sp,
+            color: Colors.white70,
+          ),
+          SizedBox(height: 8.h),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _StatChip(
+                icon: Icons.location_on_outlined,
+                label: '${route.remainingStops} Stops Left',
+              ),
+              _StatChip(
+                icon: Icons.straighten_outlined,
+                label: '${route.totalDistanceKm.toStringAsFixed(1)} KM',
+              ),
+              _StatChip(
+                icon: Icons.schedule_outlined,
+                label: 'ETA ${route.etaMinutes} Mins',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _StatChip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(8.r),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
+          Icon(icon, color: Colors.white, size: 14.sp),
+          SizedBox(width: 4.w),
+          AppText(
+            text: label,
+            fontSize: 12.sp,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// Stop Card
+// ─────────────────────────────────────────────
+
+class _StopCard extends StatelessWidget {
+  final RouteStop stop;
+  final int index;
+
+  const _StopCard({required this.stop, required this.index});
+
+  Color get _statusColor {
+    switch (stop.status.toLowerCase()) {
+      case 'delivered':
+        return Colors.green;
+      case 'in_transit':
+      case 'in-transit':
+      case 'picked_up':
+        return Colors.orange;
+      case 'failed':
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.blueGrey;
+    }
+  }
+
+  String get _statusLabel {
+    switch (stop.status.toLowerCase()) {
+      case 'delivered':
+        return 'Delivered';
+      case 'in_transit':
+      case 'in-transit':
+        return 'In Transit';
+      case 'picked_up':
+        return 'Picked Up';
+      case 'failed':
+        return 'Failed';
+      case 'cancelled':
+        return 'Cancelled';
+      case 'pending':
+        return 'Pending';
+      default:
+        return stop.status;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(14.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14.r),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Stop number badge
           Container(
-            width: 40.w,
-            height: 40.w,
+            width: 36.w,
+            height: 36.w,
             decoration: BoxDecoration(
               color: Colors.red.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8.r),
+              borderRadius: BorderRadius.circular(10.r),
             ),
-            child: const Icon(Icons.inventory_2_outlined, color: Colors.red),
+            alignment: Alignment.center,
+            child: AppText(
+              text: '${index + 1}',
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w700,
+              color: Colors.red,
+            ),
           ),
           SizedBox(width: 12.w),
+
+          // Details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AppText(
-                  text: 'Order ID : $id',
-                  fontSize: 12.sp,
-                  color: AppColors.textnaturalcolor,
-                  fontWeight: FontWeight.w500,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    AppText(
+                      text: 'Order #${stop.orderId}',
+                      fontSize: 12.sp,
+                      color: Colors.grey[500]!,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 8.w,
+                        vertical: 3.h,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _statusColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20.r),
+                      ),
+                      child: AppText(
+                        text: _statusLabel,
+                        fontSize: 11.sp,
+                        fontWeight: FontWeight.w600,
+                        color: _statusColor,
+                      ),
+                    ),
+                  ],
                 ),
                 SizedBox(height: 4.h),
                 RichText(
                   text: TextSpan(
                     style: GoogleFonts.dmSans(
-                      fontSize: 13.sp,
+                      fontSize: 14.sp,
                       color: AppColors.textnaturalcolor,
                     ),
                     children: [
                       TextSpan(
-                        text: name,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      TextSpan(
-                        text: ' - $address',
-                        style: TextStyle(color: Colors.grey[600]),
+                        text: stop.customerName,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                     ],
                   ),
                 ),
-                SizedBox(height: 4.h),
+                SizedBox(height: 2.h),
                 AppText(
-                  text: 'ETA $eta',
+                  text: stop.address,
                   fontSize: 12.sp,
-                  color: Colors.grey[500]!,
+                  color: Colors.grey[600]!,
                 ),
+                if (stop.phone != '-') ...[
+                  SizedBox(height: 8.h),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.phone_outlined,
+                        size: 13.sp,
+                        color: Colors.grey[500],
+                      ),
+                      SizedBox(width: 4.w),
+                      AppText(
+                        text: stop.phone,
+                        fontSize: 12.sp,
+                        color: Colors.grey[500]!,
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
