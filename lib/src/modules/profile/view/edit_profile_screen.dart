@@ -1,0 +1,851 @@
+import 'dart:io';
+import 'package:care_mall_rider/app/commenwidget/apptext.dart';
+import 'package:care_mall_rider/app/theme_data/app_colors.dart';
+import 'package:care_mall_rider/src/modules/profile/controller/profile_repo.dart';
+import 'package:care_mall_rider/src/modules/profile/model/profile_model.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
+
+class EditProfileScreen extends StatefulWidget {
+  final RiderProfile profile;
+  const EditProfileScreen({super.key, required this.profile});
+
+  @override
+  State<EditProfileScreen> createState() => _EditProfileScreenState();
+}
+
+class _EditProfileScreenState extends State<EditProfileScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  // ── Personal
+  late TextEditingController _nameCtrl;
+  late TextEditingController _emailCtrl;
+  File? _selectedImage;
+
+  // ── Payment
+  late String _paymentMode;
+  late TextEditingController _holderCtrl;
+  late TextEditingController _accountCtrl;
+  late TextEditingController _ifscCtrl;
+  late TextEditingController _bankNameCtrl;
+  late TextEditingController _upiIdCtrl;
+  late TextEditingController _upiNumberCtrl;
+
+  // ── Vehicle
+  late String _vehicleType;
+  late TextEditingController _regCtrl;
+
+  bool _loading = false;
+
+  static const List<String> _vehicleOptions = [
+    'Bike',
+    'Car',
+    'Half Lorry',
+    'Truck',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.profile;
+    _nameCtrl = TextEditingController(text: p.name);
+    _emailCtrl = TextEditingController(text: p.email);
+    _paymentMode = (p.paymentMode == 'upi') ? 'upi' : 'bank';
+    _holderCtrl = TextEditingController(text: p.accountHolderName);
+    _accountCtrl = TextEditingController(text: p.accountNumber);
+    _ifscCtrl = TextEditingController(text: p.ifscCode);
+    _bankNameCtrl = TextEditingController(text: p.bankName);
+    _upiIdCtrl = TextEditingController(text: p.upiId);
+    _upiNumberCtrl = TextEditingController(text: p.upiNumber);
+    _vehicleType = _vehicleOptions.contains(p.vehicleType)
+        ? p.vehicleType
+        : _vehicleOptions.first;
+    _regCtrl = TextEditingController(text: p.registrationNumber);
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _holderCtrl.dispose();
+    _accountCtrl.dispose();
+    _ifscCtrl.dispose();
+    _bankNameCtrl.dispose();
+    _upiIdCtrl.dispose();
+    _upiNumberCtrl.dispose();
+    _regCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final source = await Get.bottomSheet<ImageSource>(
+      Container(
+        padding: EdgeInsets.all(16.w),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppText(
+              text: 'Select Image Source',
+              fontSize: 16.sp,
+              fontWeight: FontWeight.w700,
+            ),
+            SizedBox(height: 16.h),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Camera'),
+              onTap: () => Get.back(result: ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Gallery'),
+              onTap: () => Get.back(result: ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source != null) {
+      final picked = await picker.pickImage(source: source);
+      if (picked != null) {
+        setState(() => _selectedImage = File(picked.path));
+      }
+    }
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) {
+      Get.snackbar(
+        'Validation Error',
+        'Please fill all required fields correctly.',
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      final result = await ProfileRepo.updateProfile(
+        name: _nameCtrl.text.trim(),
+        email: _emailCtrl.text.trim(),
+        avatar: _selectedImage,
+        paymentMode: _paymentMode,
+        accountHolderName: _paymentMode == 'bank'
+            ? _holderCtrl.text.trim()
+            : null,
+        accountNumber: _paymentMode == 'bank' ? _accountCtrl.text.trim() : null,
+        ifscCode: _paymentMode == 'bank' ? _ifscCtrl.text.trim() : null,
+        bankName: _paymentMode == 'bank' ? _bankNameCtrl.text.trim() : null,
+        upiId: _paymentMode == 'upi' ? _upiIdCtrl.text.trim() : null,
+        upiNumber: _paymentMode == 'upi' ? _upiNumberCtrl.text.trim() : null,
+        vehicleType: _vehicleType,
+        registrationNumber: _regCtrl.text.trim(),
+      );
+
+      if (result['success'] == true) {
+        Get.back(result: true);
+        Get.snackbar(
+          'Success',
+          'Profile updated successfully!',
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      } else {
+        Get.snackbar(
+          'Error',
+          result['message'] ?? 'Update failed',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Network error: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF9F9F9),
+      body: Form(
+        key: _formKey,
+        child: CustomScrollView(
+          slivers: [
+            // ── Gradient Header ──────────────────────────────────────────
+            SliverToBoxAdapter(child: _buildHeader()),
+
+            // ── Form Sections ────────────────────────────────────────────
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(20.w, 28.h, 20.w, 40.h),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  _SectionCard(
+                    icon: SvgPicture.asset(
+                      'assets/icons/user.svg',
+                      colorFilter: const ColorFilter.mode(
+                        AppColors.primarycolor,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+                    title: 'Personal Info',
+                    child: _buildPersonalSection(),
+                  ),
+                  SizedBox(height: 20.h),
+                  _SectionCard(
+                    icon: const Icon(
+                      Icons.payments_outlined,
+                      color: AppColors.primarycolor,
+                    ),
+                    title: 'Payment Setup',
+                    child: _buildPaymentSection(),
+                  ),
+                  SizedBox(height: 20.h),
+                  _SectionCard(
+                    icon: const Icon(
+                      Icons.two_wheeler_rounded,
+                      color: AppColors.primarycolor,
+                    ),
+                    title: 'Vehicle Details',
+                    child: _buildVehicleSection(),
+                  ),
+                  SizedBox(height: 36.h),
+                  _buildSaveButton(),
+                  SizedBox(height: 12.h),
+                  Center(
+                    child: TextButton(
+                      onPressed: () => Get.back(),
+                      child: AppText(
+                        text: 'Discard Changes',
+                        color: Colors.grey[500]!,
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Header ────────────────────────────────────────────────────────────────
+
+  Widget _buildHeader() {
+    ImageProvider? imgProvider;
+    if (_selectedImage != null) {
+      imgProvider = FileImage(_selectedImage!);
+    } else if (widget.profile.avatar.isNotEmpty) {
+      imgProvider = NetworkImage(widget.profile.avatar);
+    }
+    final hasImage = imgProvider != null;
+
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: AppColors.textnaturalcolor,
+                    size: 20,
+                  ),
+                  onPressed: () => Get.back(),
+                ),
+                AppText(
+                  text: 'Edit Profile',
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textnaturalcolor,
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 10.h),
+          GestureDetector(
+            onTap: _pickImage,
+            child: Stack(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 3.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: CircleAvatar(
+                    radius: 50.r,
+                    backgroundColor: Colors.white,
+                    backgroundImage: imgProvider,
+                    child: !hasImage
+                        ? SvgPicture.asset(
+                            'assets/icons/user.svg',
+                            width: 38.sp,
+                            colorFilter: ColorFilter.mode(
+                              Colors.grey[400]!,
+                              BlendMode.srcIn,
+                            ),
+                          )
+                        : null,
+                  ),
+                ),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    padding: EdgeInsets.all(7.w),
+                    decoration: BoxDecoration(
+                      color: AppColors.primarycolor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.camera_alt_rounded,
+                      color: Colors.white,
+                      size: 16.sp,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 20.h),
+        ],
+      ),
+    );
+  }
+
+  // ── Personal Section ──────────────────────────────────────────────────────
+
+  Widget _buildPersonalSection() {
+    return Column(
+      children: [
+        _EditField(
+          label: 'Full Name',
+          controller: _nameCtrl,
+          icon: SvgPicture.asset(
+            'assets/icons/user.svg',
+            colorFilter: const ColorFilter.mode(
+              AppColors.primarycolor,
+              BlendMode.srcIn,
+            ),
+          ),
+          validator: (v) =>
+              (v == null || v.trim().isEmpty) ? 'Name is required' : null,
+        ),
+        SizedBox(height: 16.h),
+        _EditField(
+          label: 'Email Address',
+          controller: _emailCtrl,
+          icon: SvgPicture.asset(
+            'assets/icons/mail.svg',
+            colorFilter: const ColorFilter.mode(
+              AppColors.primarycolor,
+              BlendMode.srcIn,
+            ),
+          ),
+          keyboardType: TextInputType.emailAddress,
+          validator: (v) {
+            if (v == null || v.trim().isEmpty) return null;
+            if (!v.contains('@')) return 'Enter a valid email';
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  // ── Payment Section ───────────────────────────────────────────────────────
+
+  Widget _buildPaymentSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: EdgeInsets.all(4.r),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0F0F0),
+            borderRadius: BorderRadius.circular(12.r),
+          ),
+          child: Row(
+            children: [
+              _ModeTab(
+                label: '🏦  Bank Transfer',
+                isSelected: _paymentMode == 'bank',
+                onTap: () => setState(() => _paymentMode = 'bank'),
+              ),
+              _ModeTab(
+                label: '📱  UPI',
+                isSelected: _paymentMode == 'upi',
+                onTap: () => setState(() => _paymentMode = 'upi'),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: 20.h),
+
+        if (_paymentMode == 'bank') ...[
+          _EditField(
+            label: 'Account Holder Name',
+            controller: _holderCtrl,
+            icon: const Icon(
+              Icons.badge_outlined,
+              color: AppColors.primarycolor,
+            ),
+            textCapitalization: TextCapitalization.words,
+            validator: (v) =>
+                (v == null || v.trim().isEmpty) ? 'Required' : null,
+          ),
+          SizedBox(height: 14.h),
+          _EditField(
+            label: 'Account Number',
+            controller: _accountCtrl,
+            icon: const Icon(
+              Icons.account_balance_outlined,
+              color: AppColors.primarycolor,
+            ),
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            validator: (v) => (v == null || v.length < 6)
+                ? 'Enter valid account number'
+                : null,
+          ),
+          SizedBox(height: 14.h),
+          _EditField(
+            label: 'IFSC Code',
+            controller: _ifscCtrl,
+            icon: const Icon(Icons.code_rounded, color: AppColors.primarycolor),
+            textCapitalization: TextCapitalization.characters,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+              _UpperCaseFormatter(),
+            ],
+            validator: (v) =>
+                (v == null || v.trim().isEmpty) ? 'Required' : null,
+          ),
+          SizedBox(height: 14.h),
+          _EditField(
+            label: 'Bank Name',
+            controller: _bankNameCtrl,
+            icon: const Icon(
+              Icons.business_rounded,
+              color: AppColors.primarycolor,
+            ),
+            textCapitalization: TextCapitalization.words,
+            validator: (v) =>
+                (v == null || v.trim().isEmpty) ? 'Required' : null,
+          ),
+        ],
+
+        if (_paymentMode == 'upi') ...[
+          _EditField(
+            label: 'UPI Registered Mobile',
+            controller: _upiNumberCtrl,
+            icon: SvgPicture.asset(
+              'assets/icons/phone.svg',
+              colorFilter: const ColorFilter.mode(
+                AppColors.primarycolor,
+                BlendMode.srcIn,
+              ),
+            ),
+            keyboardType: TextInputType.phone,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(10),
+            ],
+            validator: (v) => (v == null || v.length < 10)
+                ? 'Enter a valid 10-digit number'
+                : null,
+          ),
+        ],
+
+        SizedBox(height: 16.h),
+        Container(
+          padding: EdgeInsets.all(12.r),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEEF4FF),
+            borderRadius: BorderRadius.circular(10.r),
+            border: Border.all(color: const Color(0xFFBFD4FF)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('🔒', style: TextStyle(fontSize: 14)),
+              SizedBox(width: 8.w),
+              Expanded(
+                child: AppText(
+                  text:
+                      'Payment details are encrypted and used only for delivery payouts.',
+                  fontSize: 11.sp,
+                  color: AppColors.textDefaultSecondarycolor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Vehicle Section ───────────────────────────────────────────────────────
+
+  Widget _buildVehicleSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppText(
+          text: 'Vehicle Type',
+          fontSize: 12.sp,
+          fontWeight: FontWeight.w700,
+          color: Colors.grey[600]!,
+        ),
+        SizedBox(height: 8.h),
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 14.w),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF5F5F5),
+            borderRadius: BorderRadius.circular(12.r),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _vehicleType,
+              isExpanded: true,
+              icon: Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: AppColors.primarycolor,
+              ),
+              style: TextStyle(
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textnaturalcolor,
+              ),
+              items: _vehicleOptions.map((v) {
+                const icons = {
+                  'Bike': '🏍️',
+                  'Car': '🚗',
+                  'Half Lorry': '🚚',
+                  'Truck': '🛻',
+                };
+                return DropdownMenuItem(
+                  value: v,
+                  child: Text('${icons[v] ?? '🚗'}  $v'),
+                );
+              }).toList(),
+              onChanged: (v) {
+                if (v != null) setState(() => _vehicleType = v);
+              },
+            ),
+          ),
+        ),
+        SizedBox(height: 16.h),
+        _EditField(
+          label: 'Registration Number',
+          controller: _regCtrl,
+          icon: const Icon(
+            Icons.confirmation_number_outlined,
+            color: AppColors.primarycolor,
+          ),
+          textCapitalization: TextCapitalization.characters,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9 ]')),
+            _UpperCaseFormatter(),
+          ],
+          hint: 'e.g. KL01AB1234',
+          validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+        ),
+      ],
+    );
+  }
+
+  // ── Save Button ───────────────────────────────────────────────────────────
+
+  Widget _buildSaveButton() {
+    return GestureDetector(
+      onTap: _loading ? null : _save,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 56.h,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: _loading ? Colors.grey[400] : AppColors.primarycolor,
+          borderRadius: BorderRadius.circular(16.r),
+          boxShadow: _loading
+              ? []
+              : [
+                  BoxShadow(
+                    color: AppColors.primarycolor.withValues(alpha: 0.3),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+        ),
+        child: Center(
+          child: _loading
+              ? SizedBox(
+                  height: 24.h,
+                  width: 24.h,
+                  child: const CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2.5,
+                  ),
+                )
+              : AppText(
+                  text: 'Save Changes',
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Section Card ─────────────────────────────────────────────────────────────
+
+class _SectionCard extends StatelessWidget {
+  final Widget icon;
+  final String title;
+  final Widget child;
+
+  const _SectionCard({
+    required this.icon,
+    required this.title,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(20.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20.r),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(8.w),
+                decoration: BoxDecoration(
+                  color: AppColors.primarycolor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10.r),
+                ),
+                child: SizedBox(width: 18.sp, height: 18.sp, child: icon),
+              ),
+              SizedBox(width: 10.w),
+              AppText(
+                text: title,
+                fontSize: 15.sp,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textnaturalcolor,
+              ),
+            ],
+          ),
+          SizedBox(height: 20.h),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Editable Input Field ─────────────────────────────────────────────────────
+
+class _EditField extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+  final Widget icon;
+  final TextInputType? keyboardType;
+  final TextCapitalization textCapitalization;
+  final List<TextInputFormatter>? inputFormatters;
+  final String? Function(String?)? validator;
+  final String? hint;
+
+  const _EditField({
+    required this.label,
+    required this.controller,
+    required this.icon,
+    this.keyboardType,
+    this.textCapitalization = TextCapitalization.none,
+    this.inputFormatters,
+    this.validator,
+    this.hint,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppText(
+          text: label,
+          fontSize: 12.sp,
+          fontWeight: FontWeight.w700,
+          color: Colors.grey[600]!,
+        ),
+        SizedBox(height: 8.h),
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          textCapitalization: textCapitalization,
+          inputFormatters: inputFormatters,
+          validator: validator,
+          style: TextStyle(
+            fontSize: 14.sp,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textnaturalcolor,
+          ),
+          decoration: InputDecoration(
+            prefixIcon: Container(
+              padding: EdgeInsets.all(12.w),
+              child: SizedBox(width: 20.sp, height: 20.sp, child: icon),
+            ),
+            hintText: hint ?? 'Enter $label',
+            hintStyle: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w400,
+            ),
+            filled: true,
+            fillColor: const Color(0xFFF5F5F5),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 14.w,
+              vertical: 16.h,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12.r),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12.r),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12.r),
+              borderSide: const BorderSide(
+                color: AppColors.primarycolor,
+                width: 1.5,
+              ),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12.r),
+              borderSide: const BorderSide(color: Colors.red, width: 1.2),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12.r),
+              borderSide: const BorderSide(color: Colors.red, width: 1.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Payment Mode Tab ─────────────────────────────────────────────────────────
+
+class _ModeTab extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ModeTab({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: EdgeInsets.symmetric(vertical: 11.h),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(10.r),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.07),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : [],
+          ),
+          child: Center(
+            child: AppText(
+              text: label,
+              fontSize: 13.sp,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected
+                  ? AppColors.primarycolor
+                  : AppColors.textDefaultSecondarycolor,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Upper Case Formatter ─────────────────────────────────────────────────────
+
+class _UpperCaseFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return newValue.copyWith(text: newValue.text.toUpperCase());
+  }
+}

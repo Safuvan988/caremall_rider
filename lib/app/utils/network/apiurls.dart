@@ -63,6 +63,8 @@ class ApiUrls {
       '$baseURL/api/v1/rider/wallet/requests'; // GET – get withdrawal requests
 
   // Profile
-  // static const String getProfile = '$baseURL/api/v1/rider/profile';
-  // static const String updateProfile = '$baseURL/api/v1/rider/profile';
+  static const String getProfile =
+      '$baseURL/api/v1/rider/auth/me'; // GET – get rider profile
+  static const String updateProfile =
+      '$baseURL/api/v1/rider/auth/me'; // PATCH – update rider profile
 }
