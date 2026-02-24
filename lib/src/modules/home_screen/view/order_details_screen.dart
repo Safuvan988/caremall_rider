@@ -23,9 +23,11 @@ class OrderDetailsScreen extends StatefulWidget {
 }
 
 class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
-  DeliveryOrder? _detail;
+  DeliveryOrder? _orderDetail;
   bool _loading = true;
   String? _error;
+  bool _hasChanged = false; // Track if status was updated
+
   bool _paymentCollected = false;
   bool _uploading = false;
   bool _photoUploaded =
@@ -45,7 +47,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     });
     try {
       final detail = await OrderRepo.getOrderDetail(widget.order.id);
-      if (mounted) setState(() => _detail = detail);
+      if (mounted) setState(() => _orderDetail = detail);
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     } finally {
@@ -53,7 +55,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     }
   }
 
-  DeliveryOrder get _display => _detail ?? widget.order;
+  DeliveryOrder get _display => _orderDetail ?? widget.order;
 
   Future<void> _uploadPhoto() async {
     final picker = ImagePicker();
@@ -237,6 +239,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     // Confirm before marking delivered
     final confirmed = await Get.dialog<bool>(
       AlertDialog(
+        backgroundColor: Colors.white,
         title: AppText(
           text: 'Confirm Delivery',
           fontSize: 18.sp,
@@ -280,6 +283,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         colorText: Colors.white,
       );
       _fetchDetail();
+      _hasChanged = true;
       // Refresh wallet balance
       try {
         if (Get.isRegistered<WalletController>()) {
@@ -291,36 +295,99 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     }
   }
 
+  Future<void> _pickUpOrder() async {
+    final confirmed = await Get.dialog<bool>(
+      AlertDialog(
+        backgroundColor: Colors.white,
+        title: AppText(
+          text: 'Confirm Pickup',
+          fontSize: 18.sp,
+          fontWeight: FontWeight.w700,
+        ),
+        content: AppText(
+          text: 'Are you picking up this order from the warehouse?',
+          fontSize: 14.sp,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Get.back(result: true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primarycolor,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _updatingStatus = true);
+    final result = await OrderRepo.updateOrderStatus(
+      orderId: widget.order.id,
+      status: 'in_transit',
+    );
+    if (mounted) setState(() => _updatingStatus = false);
+
+    if (result['success'] == true) {
+      Get.snackbar(
+        'Success',
+        'Order picked up successfully!',
+        backgroundColor: Colors.green[700],
+        colorText: Colors.white,
+      );
+      _fetchDetail();
+      _hasChanged = true;
+    } else {
+      Get.snackbar('Error', result['message'] ?? 'Failed to update status.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) {
+        // We don't need to do anything here if using Navigator.pop(context, _hasChanged)
+      },
+      child: Scaffold(
         backgroundColor: Colors.white,
-        elevation: 0,
-        leading: Padding(
-          padding: EdgeInsets.all(8.w),
-          child: CircleAvatar(
-            backgroundColor: const Color(0xFFF5F5F5),
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.black, size: 20),
-              onPressed: () => Navigator.pop(context),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: Padding(
+            padding: EdgeInsets.all(8.w),
+            child: CircleAvatar(
+              backgroundColor: const Color(0xFFF5F5F5),
+              child: IconButton(
+                icon: const Icon(
+                  Icons.arrow_back,
+                  color: Colors.black,
+                  size: 20,
+                ),
+                onPressed: () => Navigator.pop(context, _hasChanged),
+              ),
             ),
           ),
+          centerTitle: true,
+          title: AppText(
+            text: 'Order Details',
+            fontSize: 16.sp,
+            fontWeight: FontWeight.w500,
+            color: AppColors.textnaturalcolor,
+          ),
         ),
-        centerTitle: true,
-        title: AppText(
-          text: 'Order Details',
-          fontSize: 16.sp,
-          fontWeight: FontWeight.w500,
-          color: AppColors.textnaturalcolor,
-        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+            ? _buildErrorState()
+            : _buildContent(_display),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-          ? _buildErrorState()
-          : _buildContent(_detail!),
     );
   }
 
@@ -480,39 +547,23 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           SizedBox(height: 4.h),
           _infoRow(Icons.location_on_outlined, address, maxLines: 3),
           SizedBox(height: 16.h),
-          Row(
-            children: [
-              Expanded(
-                child: _buildOutlineButton(
-                  icon: Icons.location_on_outlined,
-                  label: 'View on Maps',
-                  onTap: () {},
-                ),
-              ),
-              SizedBox(width: 12.w),
-              Expanded(
-                child: _buildOutlineButton(
-                  icon: Icons.phone_outlined,
-                  label: 'Call Customer',
-                  onTap: () async {
-                    final phone = addr.phone.trim();
-                    if (phone.isEmpty) return;
-                    final uri = Uri(scheme: 'tel', path: phone);
-                    try {
-                      await launchUrl(uri);
-                    } catch (_) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Could not launch dialler.'),
-                          ),
-                        );
-                      }
-                    }
-                  },
-                ),
-              ),
-            ],
+          _buildOutlineButton(
+            icon: Icons.phone_outlined,
+            label: 'Call Customer',
+            onTap: () async {
+              final phone = addr.phone.trim();
+              if (phone.isEmpty) return;
+              final uri = Uri(scheme: 'tel', path: phone);
+              try {
+                await launchUrl(uri);
+              } catch (_) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Could not launch dialler.')),
+                  );
+                }
+              }
+            },
           ),
         ],
       ),
@@ -768,6 +819,97 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   // ── Bottom Bar ─────────────────────────────────────────────────────────────
 
   Widget _buildBottomBar(bool isCompleted) {
+    if (isCompleted) {
+      return Container(
+        padding: EdgeInsets.all(16.w),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: Container(
+          width: double.infinity,
+          padding: EdgeInsets.symmetric(vertical: 14.h),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE6F4EE),
+            borderRadius: BorderRadius.circular(8.r),
+            border: Border.all(color: const Color(0xFFB3E0CE)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.check_circle,
+                color: const Color(0xFF1E7E4C),
+                size: 20.sp,
+              ),
+              SizedBox(width: 8.w),
+              AppText(
+                text: 'Delivered',
+                color: const Color(0xFF1E7E4C),
+                fontSize: 15.sp,
+                fontWeight: FontWeight.w700,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // New Order - Still at Warehouse
+    if (_display.isInNewStatus) {
+      return Container(
+        padding: EdgeInsets.all(16.w),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: AppButton(
+          onPressed: _updatingStatus ? null : _pickUpOrder,
+          btncolor: AppColors.primarycolor,
+          borderRadius: 8.r,
+          child: _updatingStatus
+              ? SizedBox(
+                  width: 20.w,
+                  height: 20.w,
+                  child: const CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.inventory_2_outlined,
+                      size: 20.sp,
+                      color: Colors.white,
+                    ),
+                    SizedBox(width: 8.w),
+                    AppText(
+                      text: 'Pick up from Warehouse',
+                      color: Colors.white,
+                      fontSize: 15.sp,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ],
+                ),
+        ),
+      );
+    }
+
+    // In Transit - Delivery Actions
     return Container(
       padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
@@ -780,118 +922,91 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           ),
         ],
       ),
-      child: isCompleted
-          ? Container(
-              width: double.infinity,
-              padding: EdgeInsets.symmetric(vertical: 14.h),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE6F4EE),
-                borderRadius: BorderRadius.circular(8.r),
-                border: Border.all(color: const Color(0xFFB3E0CE)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.check_circle,
-                    color: const Color(0xFF1E7E4C),
-                    size: 20.sp,
-                  ),
-                  SizedBox(width: 8.w),
-                  AppText(
-                    text: 'Delivered',
-                    color: const Color(0xFF1E7E4C),
-                    fontSize: 15.sp,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ],
-              ),
-            )
-          : Row(
-              children: [
-                Expanded(
-                  child: AppButton(
-                    onPressed: _updatingStatus ? null : _reportFailedDelivery,
-                    btncolor: Colors.white,
-                    borderRadius: 8.r,
-                    buttonStyle: ButtonStyle(
-                      backgroundColor: WidgetStateProperty.all(Colors.white),
-                      side: WidgetStateProperty.all(
-                        const BorderSide(color: AppColors.errorMain),
-                      ),
-                      shape: WidgetStateProperty.all(
-                        RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                      ),
-                      elevation: WidgetStateProperty.all(0),
-                    ),
-                    child: AppText(
-                      text: 'Cannot Deliver',
-                      color: AppColors.errorMain,
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w600,
-                    ),
+      child: Row(
+        children: [
+          Expanded(
+            child: AppButton(
+              onPressed: _updatingStatus ? null : _reportFailedDelivery,
+              btncolor: Colors.white,
+              borderRadius: 8.r,
+              buttonStyle: ButtonStyle(
+                backgroundColor: WidgetStateProperty.all(Colors.white),
+                side: WidgetStateProperty.all(
+                  const BorderSide(color: AppColors.errorMain),
+                ),
+                shape: WidgetStateProperty.all(
+                  RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8.r),
                   ),
                 ),
-                SizedBox(width: 12.w),
-                Expanded(
-                  child: AppButton(
-                    onPressed: _uploading || _updatingStatus
-                        ? null
-                        : (_photoUploaded
-                              ? (_display.isCod && !_paymentCollected
-                                    ? null
-                                    : _deliverOrder)
-                              : _uploadPhoto),
-                    btncolor: AppColors.primarycolor,
-                    borderRadius: 8.r,
-                    buttonStyle: ButtonStyle(
-                      backgroundColor: WidgetStateProperty.all(
-                        (_photoUploaded && _display.isCod && !_paymentCollected)
-                            ? Colors.grey
-                            : AppColors.primarycolor,
-                      ),
-                      shape: WidgetStateProperty.all(
-                        RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                      ),
-                    ),
-                    child: (_uploading || _updatingStatus)
-                        ? SizedBox(
-                            width: 20.w,
-                            height: 20.w,
-                            child: const CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                _photoUploaded
-                                    ? Icons.check_circle_outline
-                                    : Icons.camera_alt_outlined,
-                                size: 16.sp,
-                                color: Colors.white,
-                              ),
-                              SizedBox(width: 6.w),
-                              AppText(
-                                text: _photoUploaded
-                                    ? 'Deliver Order'
-                                    : 'Upload Photo',
-                                color: Colors.white,
-                                fontSize: 14.sp,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ],
-                          ),
-                  ),
-                ),
-              ],
+                elevation: WidgetStateProperty.all(0),
+              ),
+              child: AppText(
+                text: 'Cannot Deliver',
+                color: AppColors.errorMain,
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w600,
+              ),
             ),
+          ),
+          SizedBox(width: 12.w),
+          Expanded(
+            child: AppButton(
+              onPressed: _uploading || _updatingStatus
+                  ? null
+                  : (_photoUploaded
+                        ? (_display.isCod && !_paymentCollected
+                              ? null
+                              : _deliverOrder)
+                        : _uploadPhoto),
+              btncolor: AppColors.primarycolor,
+              borderRadius: 8.r,
+              buttonStyle: ButtonStyle(
+                backgroundColor: WidgetStateProperty.all(
+                  (_photoUploaded && _display.isCod && !_paymentCollected)
+                      ? Colors.grey
+                      : AppColors.primarycolor,
+                ),
+                shape: WidgetStateProperty.all(
+                  RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8.r),
+                  ),
+                ),
+              ),
+              child: (_uploading || _updatingStatus)
+                  ? SizedBox(
+                      width: 20.w,
+                      height: 20.w,
+                      child: const CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _photoUploaded
+                              ? Icons.check_circle_outline
+                              : Icons.camera_alt_outlined,
+                          size: 16.sp,
+                          color: Colors.white,
+                        ),
+                        SizedBox(width: 6.w),
+                        AppText(
+                          text: _photoUploaded
+                              ? 'Deliver Order'
+                              : 'Upload Photo',
+                          color: Colors.white,
+                          fontSize: 14.sp,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -2,7 +2,7 @@ class ApiUrls {
   // Base URL
   // Use 10.0.2.2 for Android Emulator to access host localhost
   // Use Your_PC_IP_Address for Physical Device (e.g., 192.168.1.x)
-  static const String baseURL = 'http://192.168.1.4:3000';
+  static const String baseURL = 'http://192.168.1.10:3000';
 
   // Auth
   static const String sendOtp =
@@ -31,6 +31,8 @@ class ApiUrls {
   // Orders
   static const String deliveryOrders =
       '$baseURL/api/v1/rider/delivery/orders'; // GET – list all assigned orders
+  static const String dashboard =
+      '$baseURL/api/v1/rider/delivery/dashboard'; // GET – dashboard stats
   static String orderDetail(String id) =>
       '$baseURL/api/v1/rider/delivery/orders/$id'; // GET – single order detail
   static String orderUpdateStatus(String id) =>

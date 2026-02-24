@@ -29,6 +29,7 @@ class _ReturnDetailsScreenState extends State<ReturnDetailsScreen> {
   bool _updatingStatus = false;
   bool _uploading = false;
   bool _photoUploaded = false;
+  bool _hasChanged = false;
 
   @override
   void initState() {
@@ -73,6 +74,7 @@ class _ReturnDetailsScreenState extends State<ReturnDetailsScreen> {
         );
         if (result['success'] == true) {
           _fetchDetail();
+          _hasChanged = true;
 
           // Refresh wallet balance
           try {
@@ -159,57 +161,63 @@ class _ReturnDetailsScreenState extends State<ReturnDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9F9F9),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: AppText(
-          text: 'Return Details',
-          fontSize: 17.sp,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textnaturalcolor,
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh, color: Colors.grey[600]),
-            onPressed: _fetchDetail,
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) {
+        // Handled by manual Navigator.pop
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF9F9F9),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black),
+            onPressed: () => Navigator.pop(context, _hasChanged),
           ),
-        ],
+          title: AppText(
+            text: 'Return Details',
+            fontSize: 17.sp,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textnaturalcolor,
+          ),
+          actions: [
+            IconButton(
+              icon: Icon(Icons.refresh, color: Colors.grey[600]),
+              onPressed: _fetchDetail,
+            ),
+          ],
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.wifi_off_rounded,
+                      size: 48.sp,
+                      color: Colors.grey[400],
+                    ),
+                    SizedBox(height: 12.h),
+                    AppText(
+                      text: 'Could not load details',
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[600]!,
+                    ),
+                    SizedBox(height: 8.h),
+                    TextButton.icon(
+                      onPressed: _fetchDetail,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              )
+            : _buildContent(),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.wifi_off_rounded,
-                    size: 48.sp,
-                    color: Colors.grey[400],
-                  ),
-                  SizedBox(height: 12.h),
-                  AppText(
-                    text: 'Could not load details',
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey[600]!,
-                  ),
-                  SizedBox(height: 8.h),
-                  TextButton.icon(
-                    onPressed: _fetchDetail,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Retry'),
-                  ),
-                ],
-              ),
-            )
-          : _buildContent(),
     );
   }
 

@@ -423,15 +423,15 @@ class _InputField extends StatelessWidget {
           fontSize: 14.sp,
         ),
         filled: true,
-        fillColor: const Color(0xFFF5F5F5),
+        fillColor: Colors.white,
         contentPadding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.r),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(color: Colors.grey[200]!),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.r),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(color: Colors.grey[200]!),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.r),

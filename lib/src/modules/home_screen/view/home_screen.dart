@@ -2,6 +2,7 @@ import 'package:care_mall_rider/app/app_buttons/app_buttons.dart';
 import 'package:care_mall_rider/app/commenwidget/apptext.dart';
 import 'package:care_mall_rider/app/theme_data/app_colors.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:care_mall_rider/src/modules/home_screen/view/order_details_screen.dart';
 import 'package:care_mall_rider/src/modules/home_screen/view/route_screen.dart';
@@ -36,6 +37,10 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _returnsLoading = true;
   String? _returnsError;
 
+  // Dashboard stats from API
+  double _totalCodToday = 0.0;
+  int _totalDeliveredToday = 0;
+
   @override
   void initState() {
     super.initState();
@@ -57,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _returnsLoading = true;
       _returnsError = null;
     });
-    // Fetch delivery orders and return orders in parallel
+    // Fetch delivery orders, return orders and dashboard stats in parallel
     await Future.wait([
       OrderRepo.getDeliveryOrders()
           .then((orders) {
@@ -73,11 +78,81 @@ class _HomeScreenState extends State<HomeScreen> {
           .catchError((e) {
             if (mounted) setState(() => _returnsError = e.toString());
           }),
+      OrderRepo.getDashboardStats()
+          .then((response) {
+            if (mounted) {
+              setState(() {
+                // Determine which map holds the actual stats
+                final Map<String, dynamic> stats =
+                    response['stats'] ??
+                    response['dashboard'] ??
+                    response['data'] ??
+                    response;
+
+                debugPrint('Dashboard API Response: $stats');
+
+                // Extract Total COD with multiple fallback keys
+                _totalCodToday =
+                    (stats['totalCodToday'] ??
+                            stats['total_cod_today'] ??
+                            stats['totalCod'] ??
+                            stats['total_cod'] ??
+                            stats['codToday'] ??
+                            stats['cod_today'] ??
+                            0.0)
+                        .toDouble();
+
+                // Extract Total Delivered with multiple fallback keys
+                _totalDeliveredToday =
+                    (stats['totalDeliveredToday'] ??
+                    stats['total_delivered_today'] ??
+                    stats['totalDelivered'] ??
+                    stats['total_delivered'] ??
+                    stats['deliveredToday'] ??
+                    stats['delivered_today'] ??
+                    stats['deliveredOrders'] ??
+                    0);
+              });
+            }
+          })
+          .catchError((e) {
+            debugPrint('Dashboard Fetch Error: $e');
+            // Silently fail or log dashboard error
+          }),
     ]);
     if (mounted) {
       setState(() {
         _ordersLoading = false;
         _returnsLoading = false;
+
+        // --- Recalculate local stats for accuracy ---
+        final now = DateTime.now();
+        int localDelivered = 0;
+        double localCod = 0;
+
+        for (final o in _allOrders) {
+          // Check if delivered TODAY
+          if (o.orderStatus.toLowerCase() == 'delivered' &&
+              o.deliveredAt != null) {
+            final date = o.deliveredAt!;
+            if (date.year == now.year &&
+                date.month == now.month &&
+                date.day == now.day) {
+              localDelivered++;
+              if (o.isCod) {
+                localCod += o.totalAmount;
+              }
+            }
+          }
+        }
+
+        // Merge API stats with local calculation (take the max to be safe)
+        if (localDelivered > _totalDeliveredToday) {
+          _totalDeliveredToday = localDelivered;
+        }
+        if (localCod > _totalCodToday) {
+          _totalCodToday = localCod;
+        }
       });
     }
   }
@@ -100,6 +175,23 @@ class _HomeScreenState extends State<HomeScreen> {
   List<DeliveryOrder> get _historyOrders => _allOrders
       .where((o) => _historyStatuses.contains(o.orderStatus))
       .toList();
+
+  /// Today's delivered COD orders for breakdown
+  List<DeliveryOrder> get _todayCodOrders {
+    final now = DateTime.now();
+    return _allOrders.where((o) {
+      if (o.orderStatus.toLowerCase() != 'delivered' || o.deliveredAt == null) {
+        return false;
+      }
+      final d = o.deliveredAt!;
+      return d.year == now.year &&
+          d.month == now.month &&
+          d.day == now.day &&
+          o.isCod;
+    }).toList();
+  }
+
+  // ─── Dashboard Stats (Now state-based) ───────────────────────────────────
 
   // _selectedTab: 0=New 1=InTransit 2=Return 3=History
   bool get _isReturnTab => _selectedTab == 2;
@@ -192,6 +284,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
 
                   if (_selectedIndex == 0) ...[
+                    _buildDashboard(),
+                    SizedBox(height: 16.h),
                     // ─── Search Bar ──────────────────────────────────────────────────
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 16.w),
@@ -263,7 +357,12 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.white,
         currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
+        onTap: (index) {
+          setState(() => _selectedIndex = index);
+          // Always refresh user data (like name) when switching tabs
+          // This ensures that returning from Profile -> Home shows the new name
+          _loadUserData();
+        },
         selectedItemColor: AppColors.primarycolor,
         unselectedItemColor: Colors.grey,
         showUnselectedLabels: true,
@@ -295,6 +394,221 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ─── Helper Widgets ──────────────────────────────────────────────────────
+
+  Widget _buildDashboard() {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 16.w),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildStatCard(
+              title: 'COD Collected Today',
+              value: '₹ ${_totalCodToday.toStringAsFixed(0)}',
+              icon: Icons.account_balance_wallet_rounded,
+              color: const Color(0xFF6366F1),
+              onTap: _showCodBreakdown,
+            ),
+          ),
+          SizedBox(width: 12.w),
+          Expanded(
+            child: _buildStatCard(
+              title: 'Delivered Today',
+              value: '$_totalDeliveredToday',
+              icon: Icons.local_shipping_rounded,
+              color: const Color(0xFF10B981),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.all(12.w),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12.r),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+          border: Border.all(color: Colors.grey[100]!),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: EdgeInsets.all(8.w),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+              child: Icon(icon, color: color, size: 20.sp),
+            ),
+            SizedBox(height: 12.h),
+            AppText(
+              text: title,
+              fontSize: 12.sp,
+              color: Colors.grey[600]!,
+              fontWeight: FontWeight.w500,
+            ),
+            SizedBox(height: 4.h),
+            AppText(
+              text: value,
+              fontSize: 20.sp,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textnaturalcolor,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCodBreakdown() {
+    final codOrders = _todayCodOrders;
+
+    Get.bottomSheet(
+      Container(
+        padding: EdgeInsets.all(24.w),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40.w,
+                height: 4.h,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2.r),
+                ),
+              ),
+            ),
+            SizedBox(height: 20.h),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                AppText(
+                  text: 'COD Details Today',
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textnaturalcolor,
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6.r),
+                  ),
+                  child: AppText(
+                    text: '₹ ${_totalCodToday.toStringAsFixed(0)}',
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF6366F1),
+                  ),
+                ),
+              ],
+            ),
+
+            SizedBox(height: 20.h),
+            if (codOrders.isEmpty)
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: 30.h),
+                child: Center(
+                  child: AppText(
+                    text: 'No COD orders collected today.',
+                    fontSize: 14.sp,
+                    color: Colors.grey,
+                  ),
+                ),
+              )
+            else
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: 400.h),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: codOrders.length,
+                  separatorBuilder: (_, _) =>
+                      Divider(height: 24.h, color: Colors.grey[100]),
+                  itemBuilder: (context, index) {
+                    final order = codOrders[index];
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            AppText(
+                              text: 'Order #${order.orderId}',
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textnaturalcolor,
+                            ),
+                            SizedBox(height: 4.h),
+                            AppText(
+                              text:
+                                  'Customer: ${order.shippingAddress.fullName}',
+                              fontSize: 12.sp,
+                              color: Colors.grey[600]!,
+                            ),
+                          ],
+                        ),
+                        AppText(
+                          text: '₹ ${order.totalAmount.toStringAsFixed(2)}',
+                          fontSize: 14.sp,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textnaturalcolor,
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            SizedBox(height: 20.h),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Get.back(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primarycolor,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(vertical: 12.h),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.r),
+                  ),
+                  elevation: 0,
+                ),
+                child: AppText(
+                  text: 'Close',
+                  fontSize: 15.sp,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      isScrollControlled: true,
+    );
+  }
 
   Widget _buildTab(String title, int index) {
     final bool isSelected = _selectedTab == index;
@@ -428,13 +742,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildReturnCard(ReturnOrder ret) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
+      onTap: () async {
+        final result = await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => ReturnDetailsScreen(returnOrder: ret),
           ),
         );
+        if (result == true && mounted) {
+          _fetchOrders();
+        }
       },
       child: Container(
         decoration: BoxDecoration(
@@ -720,14 +1037,17 @@ class _HomeScreenState extends State<HomeScreen> {
                       : SizedBox(
                           height: 40.h,
                           child: AppButton(
-                            onPressed: () {
-                              Navigator.push(
+                            onPressed: () async {
+                              final result = await Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) =>
                                       OrderDetailsScreen(order: order),
                                 ),
                               );
+                              if (result == true && mounted) {
+                                _fetchOrders();
+                              }
                             },
                             btncolor: AppColors.primarycolor,
                             borderRadius: 6.r,

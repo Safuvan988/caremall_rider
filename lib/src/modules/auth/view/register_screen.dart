@@ -160,15 +160,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       padding: const EdgeInsets.all(10.0),
                       child: Assets.icons.user.svg(),
                     ),
+                    filled: true,
+                    fillColor: Colors.white,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(5),
+                      borderSide: BorderSide(
+                        color: Colors.grey[200]!,
+                        width: 1.5,
+                      ),
                     ),
 
                     // 👇 When Enabled
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(5),
                       borderSide: BorderSide(
-                        color: Colors.grey[300]!,
+                        color: Colors.grey[200]!,
                         width: 1.5,
                       ),
                     ),
@@ -223,15 +229,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       padding: const EdgeInsets.all(14.0),
                       child: Assets.icons.mail.svg(),
                     ),
+                    filled: true,
+                    fillColor: Colors.white,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(5),
+                      borderSide: BorderSide(
+                        color: Colors.grey[200]!,
+                        width: 1.5,
+                      ),
                     ),
 
                     // 👇 When Enabled
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(5),
                       borderSide: BorderSide(
-                        color: Colors.grey[300]!,
+                        color: Colors.grey[200]!,
                         width: 1.5,
                       ),
                     ),
@@ -295,10 +307,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       padding: const EdgeInsets.all(14.0),
                       child: Assets.icons.phone.svg(),
                     ),
+                    filled: true,
+                    fillColor: Colors.white,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(5),
                       borderSide: BorderSide(
-                        color: Colors.grey[300]!,
+                        color: Colors.grey[200]!,
                         width: 1.5,
                       ),
                     ),
@@ -307,7 +321,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(5),
                       borderSide: BorderSide(
-                        color: Colors.grey[300]!,
+                        color: Colors.grey[200]!,
                         width: 1.5,
                       ),
                     ),

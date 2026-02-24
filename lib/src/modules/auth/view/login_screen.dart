@@ -152,20 +152,21 @@ class _LoginScreenState extends State<LoginScreen> {
                               padding: const EdgeInsets.all(14.0),
                               child: Assets.icons.phone.svg(),
                             ),
+                            filled: true,
+                            fillColor: Colors.white,
                             // 👇 Default Border
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(5),
                               borderSide: BorderSide(
-                                color: Colors.grey[300]!,
+                                color: Colors.grey[200]!,
                                 width: 1.5,
                               ),
                             ),
-
                             // 👇 When Enabled
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(5),
                               borderSide: BorderSide(
-                                color: Colors.grey[300]!,
+                                color: Colors.grey[200]!,
                                 width: 1.5,
                               ),
                             ),

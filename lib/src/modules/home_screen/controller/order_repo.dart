@@ -33,6 +33,29 @@ class OrderRepo {
     }
   }
 
+  /// Fetch dashboard statistics for the rider.
+  static Future<Map<String, dynamic>> getDashboardStats() async {
+    final token = await StorageService.getAuthToken();
+
+    final response = await http.get(
+      Uri.parse(ApiUrls.dashboard),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      // Handle "data" wrapper if it exists, otherwise return body
+      return body['data'] ?? body;
+    } else {
+      throw Exception(
+        'Failed to load dashboard stats (${response.statusCode}): ${response.body}',
+      );
+    }
+  }
+
   /// Fetch a single order by its MongoDB document ID.
   static Future<DeliveryOrder> getOrderDetail(String orderId) async {
     final token = await StorageService.getAuthToken();

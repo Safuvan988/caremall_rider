@@ -8,6 +8,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'dart:math' show cos, sqrt, pi;
+
+// ─────────────────────────────────────────────
+// Utils
+// ─────────────────────────────────────────────
+
+double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+  const p = pi / 180;
+  const r = 6371; // Earth radius in km
+  final a =
+      0.5 -
+      cos((lat2 - lat1) * p) / 2 +
+      cos(lat1 * p) * cos(lat2 * p) * (1 - cos((lon2 - lon1) * p)) / 2;
+  return 2 * r * sqrt(a);
+}
 
 // ─────────────────────────────────────────────
 // Model
@@ -83,6 +98,8 @@ class TodayRoute {
   final int remainingStops;
   final double totalDistanceKm;
   final int etaMinutes;
+  final double? riderLat;
+  final double? riderLng;
   final List<RouteStop> stops;
 
   const TodayRoute({
@@ -90,6 +107,8 @@ class TodayRoute {
     required this.remainingStops,
     required this.totalDistanceKm,
     required this.etaMinutes,
+    this.riderLat,
+    this.riderLng,
     required this.stops,
   });
 
@@ -103,16 +122,75 @@ class TodayRoute {
         .map((e) => RouteStop.fromJson(e as Map<String, dynamic>))
         .toList();
 
+    // Parse rider location
+    final riderLoc = json['riderLocation'] ?? json['rider_location'];
+    double? rLat;
+    double? rLng;
+    if (riderLoc is Map) {
+      rLat =
+          (riderLoc['lat'] as num?)?.toDouble() ??
+          (riderLoc['latitude'] as num?)?.toDouble();
+      rLng =
+          (riderLoc['lng'] as num?)?.toDouble() ??
+          (riderLoc['longitude'] as num?)?.toDouble();
+    }
+
+    double dist =
+        (json['totalDistanceKm'] ??
+                json['totalDistance'] ??
+                json['distance'] ??
+                json['total_distance'] as num?)
+            ?.toDouble() ??
+        0.0;
+
+    int eta =
+        (json['etaMinutes'] ??
+                json['eta'] ??
+                json['duration'] ??
+                json['total_duration'] ??
+                json['estimated_time'] as num?)
+            ?.toInt() ??
+        0;
+
+    // Client-side calculation fallback
+    if (dist == 0.0 && stops.isNotEmpty && rLat != null && rLng != null) {
+      double calculatedDist = 0;
+      double currentLat = rLat;
+      double currentLng = rLng;
+
+      for (final stop in stops) {
+        if (stop.lat != null && stop.lng != null) {
+          calculatedDist += _calculateDistance(
+            currentLat,
+            currentLng,
+            stop.lat!,
+            stop.lng!,
+          );
+          currentLat = stop.lat!;
+          currentLng = stop.lng!;
+        }
+      }
+      dist = calculatedDist;
+
+      // Estimate ETA: Dist / 30 km/h * 60 min
+      if (eta == 0) {
+        eta = (dist / 30 * 60).round();
+      }
+    }
+
     return TodayRoute(
-      totalStops: (json['totalStops'] as num?)?.toInt() ?? stops.length,
+      totalStops:
+          (json['totalStops'] as num?)?.toInt() ??
+          (json['total_stops'] as num?)?.toInt() ??
+          stops.length,
       remainingStops:
           (json['remainingStops'] as num?)?.toInt() ??
+          (json['remaining_stops'] as num?)?.toInt() ??
           stops.where((s) => s.status != 'delivered').length,
-      totalDistanceKm:
-          (json['totalDistanceKm'] ?? json['totalDistance'] as num?)
-              ?.toDouble() ??
-          0.0,
-      etaMinutes: (json['etaMinutes'] ?? json['eta'] as num?)?.toInt() ?? 0,
+      totalDistanceKm: dist,
+      etaMinutes: eta,
+      riderLat: rLat,
+      riderLng: rLng,
       stops: stops,
     );
   }
@@ -150,13 +228,24 @@ Future<TodayRoute> fetchTodayRoute({
 
       if (decoded is Map<String, dynamic>) {
         // Try common wrapper keys for the stops list
-        final inner = decoded['route'] ?? decoded['data'];
-        if (inner is List) {
-          return TodayRoute.fromJson({'stops': inner});
+        final innerStops =
+            decoded['route'] ?? decoded['data'] ?? decoded['stops'];
+
+        // If the wrapper contains the stops list but also other fields (like totalDistanceKm)
+        // we pass the whole 'decoded' map to fromJson.
+        // If the wrapper is just a list, we wrap it.
+
+        if (innerStops is List) {
+          // Before wrapping, let's see if the root 'decoded' had the stats
+          // If not, maybe the 'decoded' is the list itself (handled above)
+          // If 'innerStops' is the list, we might need to check if stats are in 'decoded'
+          return TodayRoute.fromJson(decoded);
         }
-        if (inner is Map<String, dynamic>) {
-          return TodayRoute.fromJson(inner);
+
+        if (innerStops is Map<String, dynamic>) {
+          return TodayRoute.fromJson(innerStops);
         }
+
         // Fall back: treat the whole body as the route object
         return TodayRoute.fromJson(decoded);
       }

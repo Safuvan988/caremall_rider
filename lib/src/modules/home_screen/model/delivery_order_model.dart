@@ -61,6 +61,18 @@ class DeliveryOrder {
     ].where((s) => s.isNotEmpty).toList();
     return parts.join(', ');
   }
+
+  /// Is this order in the "New" tab (not yet picked up)?
+  bool get isInNewStatus {
+    const newStatuses = {'pending', 'confirmed', 'processing', 'dispatched'};
+    return newStatuses.contains(orderStatus.toLowerCase());
+  }
+
+  /// Is this order in the "In Transit" tab?
+  bool get isInTransitStatus {
+    const transitStatuses = {'shipped', 'out_for_delivery'};
+    return transitStatuses.contains(orderStatus.toLowerCase());
+  }
 }
 
 class OrderItem {

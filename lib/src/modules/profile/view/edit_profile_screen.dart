@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:care_mall_rider/src/core/services/storage_service.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -83,39 +84,77 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final source = await Get.bottomSheet<ImageSource>(
-      Container(
-        padding: EdgeInsets.all(16.w),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AppText(
-              text: 'Select Image Source',
-              fontSize: 16.sp,
-              fontWeight: FontWeight.w700,
-            ),
-            SizedBox(height: 16.h),
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('Camera'),
-              onTap: () => Get.back(result: ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('Gallery'),
-              onTap: () => Get.back(result: ImageSource.gallery),
-            ),
-          ],
+    ImageSource? source;
+
+    await showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 16.h, horizontal: 16.w),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40.w,
+                height: 4.h,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2.r),
+                ),
+              ),
+              SizedBox(height: 16.h),
+              AppText(
+                text: 'Select Photo',
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w600,
+              ),
+              SizedBox(height: 16.h),
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: AppColors.primarylightcolor,
+                  radius: 20.r,
+                  child: Icon(
+                    Icons.camera_alt_outlined,
+                    color: AppColors.primarycolor,
+                    size: 20.sp,
+                  ),
+                ),
+                title: Text('Take Photo', style: TextStyle(fontSize: 16.sp)),
+                onTap: () {
+                  source = ImageSource.camera;
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: const Color(0xFFE8F0FE),
+                  radius: 20.r,
+                  child: Icon(
+                    Icons.photo_library_outlined,
+                    color: const Color(0xFF4A6CF7),
+                    size: 20.sp,
+                  ),
+                ),
+                title: Text(
+                  'Choose from Gallery',
+                  style: TextStyle(fontSize: 16.sp),
+                ),
+                onTap: () {
+                  source = ImageSource.gallery;
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
 
     if (source != null) {
-      final picked = await picker.pickImage(source: source);
+      final picked = await picker.pickImage(source: source!, imageQuality: 90);
       if (picked != null) {
         setState(() => _selectedImage = File(picked.path));
       }
@@ -153,6 +192,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
 
       if (result['success'] == true) {
+        // Update local storage so Home screen and others reflect the change
+        final newName = _nameCtrl.text.trim();
+        final newEmail = _emailCtrl.text.trim();
+        await StorageService.saveUserName(newName);
+        await StorageService.saveUserEmail(newEmail);
+
         Get.back(result: true);
         Get.snackbar(
           'Success',
@@ -538,13 +583,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         Container(
           padding: EdgeInsets.symmetric(horizontal: 14.w),
           decoration: BoxDecoration(
-            color: const Color(0xFFF5F5F5),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(12.r),
+            border: Border.all(color: Colors.grey[200]!),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: _vehicleType,
               isExpanded: true,
+              dropdownColor: Colors.white,
               icon: Icon(
                 Icons.keyboard_arrow_down_rounded,
                 color: AppColors.primarycolor,
@@ -753,18 +800,18 @@ class _EditField extends StatelessWidget {
               fontWeight: FontWeight.w400,
             ),
             filled: true,
-            fillColor: const Color(0xFFF5F5F5),
+            fillColor: Colors.white,
             contentPadding: EdgeInsets.symmetric(
               horizontal: 14.w,
               vertical: 16.h,
             ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12.r),
-              borderSide: BorderSide.none,
+              borderSide: BorderSide(color: Colors.grey[200]!),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12.r),
-              borderSide: BorderSide.none,
+              borderSide: BorderSide(color: Colors.grey[200]!),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12.r),

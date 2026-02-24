@@ -552,7 +552,7 @@ class _WalletScreenState extends State<WalletScreen> {
                   ),
                 ),
                 filled: true,
-                fillColor: Colors.grey.shade50,
+                fillColor: Colors.white,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12.r),
                   borderSide: BorderSide(color: Colors.grey.shade200),
