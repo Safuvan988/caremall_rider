@@ -2,7 +2,7 @@ class ApiUrls {
   // Base URL
   // Use 10.0.2.2 for Android Emulator to access host localhost
   // Use Your_PC_IP_Address for Physical Device (e.g., 192.168.1.x)
-  static const String baseURL = 'http://192.168.1.10:3000';
+  static const String baseURL = 'http://192.168.1.6:3000';
 
   // Auth
   static const String sendOtp =
@@ -17,7 +17,7 @@ class ApiUrls {
       '$baseURL/api/v1/rider/auth/resend-otp'; // POST – resend OTP
   static const String logout =
       '$baseURL/api/v1/rider/auth/logout'; // POST – logout rider
-  //
+
   // Kyc
   static const String kycSubmit =
       '$baseURL/api/v1/rider/kyc/submit'; // POST – submit kyc

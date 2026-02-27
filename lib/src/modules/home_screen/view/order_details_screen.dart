@@ -820,6 +820,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
   Widget _buildBottomBar(bool isCompleted) {
     if (isCompleted) {
+      final isCancelled =
+          _display.orderStatus.toLowerCase() == 'cancelled' ||
+          _display.orderStatus.toLowerCase() == 'failed';
+
       return Container(
         padding: EdgeInsets.all(16.w),
         decoration: BoxDecoration(
@@ -836,22 +840,28 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           width: double.infinity,
           padding: EdgeInsets.symmetric(vertical: 14.h),
           decoration: BoxDecoration(
-            color: const Color(0xFFE6F4EE),
+            color: isCancelled
+                ? const Color(0xFFFFE3E3)
+                : const Color(0xFFE6F4EE),
             borderRadius: BorderRadius.circular(8.r),
-            border: Border.all(color: const Color(0xFFB3E0CE)),
+            border: Border.all(
+              color: isCancelled
+                  ? const Color(0xFFFFB3B3)
+                  : const Color(0xFFB3E0CE),
+            ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                Icons.check_circle,
-                color: const Color(0xFF1E7E4C),
+                isCancelled ? Icons.cancel_outlined : Icons.check_circle,
+                color: isCancelled ? Colors.red : const Color(0xFF1E7E4C),
                 size: 20.sp,
               ),
               SizedBox(width: 8.w),
               AppText(
-                text: 'Delivered',
-                color: const Color(0xFF1E7E4C),
+                text: isCancelled ? 'Cancelled' : 'Delivered',
+                color: isCancelled ? Colors.red : const Color(0xFF1E7E4C),
                 fontSize: 15.sp,
                 fontWeight: FontWeight.w700,
               ),

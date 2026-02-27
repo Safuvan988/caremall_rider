@@ -4,6 +4,7 @@ import 'package:care_mall_rider/app/theme_data/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:care_mall_rider/src/modules/home_screen/view/delivered_today_screen.dart';
 import 'package:care_mall_rider/src/modules/home_screen/view/order_details_screen.dart';
 import 'package:care_mall_rider/src/modules/home_screen/view/route_screen.dart';
 import 'package:care_mall_rider/src/modules/profile/view/profile_screen.dart';
@@ -416,6 +417,10 @@ class _HomeScreenState extends State<HomeScreen> {
               value: '$_totalDeliveredToday',
               icon: Icons.local_shipping_rounded,
               color: const Color(0xFF10B981),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DeliveredTodayScreen()),
+              ),
             ),
           ),
         ],

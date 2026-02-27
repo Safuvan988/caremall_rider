@@ -9,13 +9,15 @@ class WalletRepo {
   static Future<WalletModel> getWalletData() async {
     final token = await StorageService.getAuthToken();
 
-    final response = await http.get(
-      Uri.parse(ApiUrls.wallet),
-      headers: {
-        'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      },
-    );
+    final response = await http
+        .get(
+          Uri.parse(ApiUrls.wallet),
+          headers: {
+            'Content-Type': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
+        )
+        .timeout(const Duration(seconds: 10));
 
     if (response.statusCode == 200) {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -30,14 +32,16 @@ class WalletRepo {
   static Future<Map<String, dynamic>> requestWithdrawal(num amount) async {
     final token = await StorageService.getAuthToken();
 
-    final response = await http.post(
-      Uri.parse(ApiUrls.withdraw),
-      headers: {
-        'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({'amount': amount}),
-    );
+    final response = await http
+        .post(
+          Uri.parse(ApiUrls.withdraw),
+          headers: {
+            'Content-Type': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({'amount': amount}),
+        )
+        .timeout(const Duration(seconds: 10));
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
 
@@ -57,13 +61,15 @@ class WalletRepo {
   static Future<List<WithdrawalRequest>> getWithdrawalRequests() async {
     final token = await StorageService.getAuthToken();
 
-    final response = await http.get(
-      Uri.parse(ApiUrls.withdrawalRequests),
-      headers: {
-        'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      },
-    );
+    final response = await http
+        .get(
+          Uri.parse(ApiUrls.withdrawalRequests),
+          headers: {
+            'Content-Type': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
+        )
+        .timeout(const Duration(seconds: 10));
 
     if (response.statusCode == 200) {
       final body = jsonDecode(response.body) as Map<String, dynamic>;

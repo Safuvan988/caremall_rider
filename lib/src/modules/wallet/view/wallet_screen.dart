@@ -29,6 +29,52 @@ class _WalletScreenState extends State<WalletScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
+          // Show error state with retry
+          if (controller.errorMessage.value != null &&
+              controller.walletData.value == null) {
+            return Center(
+              child: Padding(
+                padding: EdgeInsets.all(24.w),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.wifi_off_rounded,
+                      size: 56.sp,
+                      color: Colors.grey[400],
+                    ),
+                    SizedBox(height: 16.h),
+                    AppText(
+                      text: 'Failed to Load Wallet',
+                      fontSize: 16.sp,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textnaturalcolor,
+                    ),
+                    SizedBox(height: 8.h),
+                    AppText(
+                      text: controller.errorMessage.value!,
+                      fontSize: 13.sp,
+                      color: Colors.grey,
+                    ),
+                    SizedBox(height: 24.h),
+                    ElevatedButton.icon(
+                      onPressed: controller.fetchWalletData,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primarycolor,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10.r),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
           final wallet = controller.walletData.value;
           final transactions = wallet?.transactions ?? [];
 

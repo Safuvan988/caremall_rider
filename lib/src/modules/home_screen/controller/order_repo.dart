@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:care_mall_rider/app/utils/network/apiurls.dart';
 import 'package:care_mall_rider/src/core/services/storage_service.dart';
+import 'package:care_mall_rider/src/modules/home_screen/model/dashboard_model.dart';
 import 'package:care_mall_rider/src/modules/home_screen/model/delivery_order_model.dart';
 import 'package:care_mall_rider/src/modules/home_screen/model/return_order_model.dart';
 
@@ -52,6 +53,30 @@ class OrderRepo {
     } else {
       throw Exception(
         'Failed to load dashboard stats (${response.statusCode}): ${response.body}',
+      );
+    }
+  }
+
+  /// Fetch full dashboard with summary stats and today's orders.
+  static Future<DashboardModel> getDashboard() async {
+    final token = await StorageService.getAuthToken();
+
+    final response = await http
+        .get(
+          Uri.parse(ApiUrls.dashboard),
+          headers: {
+            'Content-Type': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
+        )
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return DashboardModel.fromJson(body);
+    } else {
+      throw Exception(
+        'Failed to load dashboard (${response.statusCode}): ${response.body}',
       );
     }
   }

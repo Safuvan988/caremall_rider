@@ -478,19 +478,10 @@ class _SummaryCard extends StatelessWidget {
           ),
           SizedBox(height: 8.h),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _StatChip(
                 icon: Icons.location_on_outlined,
                 label: '${route.remainingStops} Stops Left',
-              ),
-              _StatChip(
-                icon: Icons.straighten_outlined,
-                label: '${route.totalDistanceKm.toStringAsFixed(1)} KM',
-              ),
-              _StatChip(
-                icon: Icons.schedule_outlined,
-                label: 'ETA ${route.etaMinutes} Mins',
               ),
             ],
           ),

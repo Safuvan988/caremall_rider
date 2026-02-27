@@ -8,6 +8,7 @@ class WalletController extends GetxController {
   var isLoading = false.obs;
   var walletData = Rxn<WalletModel>();
   var withdrawalRequests = <WithdrawalRequest>[].obs;
+  var errorMessage = Rxn<String>();
 
   @override
   void onInit() {
@@ -19,10 +20,13 @@ class WalletController extends GetxController {
   Future<void> fetchWalletData() async {
     try {
       isLoading(true);
+      errorMessage.value = null;
       final data = await WalletRepo.getWalletData();
       walletData.value = data;
     } catch (e) {
-      Get.snackbar('Error', 'Failed to fetch wallet data: $e');
+      errorMessage.value =
+          'Could not load wallet. Please check your connection and try again.';
+      Log.error('Error fetching wallet data', error: e);
     } finally {
       isLoading(false);
     }
