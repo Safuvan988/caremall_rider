@@ -81,6 +81,30 @@ class OrderRepo {
     }
   }
 
+  /// Fetch orders from the delivery endpoint and wrap them in a DashboardModel.
+  /// This is used for the "Delivered Today" screen which needs order details.
+  static Future<DashboardModel> getDeliveredTodayData() async {
+    final token = await StorageService.getAuthToken();
+
+    final response = await http.get(
+      Uri.parse(ApiUrls.deliveryOrders),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      // DashboardModel.fromJson handles calculating summary from the orders list
+      return DashboardModel.fromJson(body);
+    } else {
+      throw Exception(
+        'Failed to load today\'s orders (${response.statusCode}): ${response.body}',
+      );
+    }
+  }
+
   /// Fetch a single order by its MongoDB document ID.
   static Future<DeliveryOrder> getOrderDetail(String orderId) async {
     final token = await StorageService.getAuthToken();

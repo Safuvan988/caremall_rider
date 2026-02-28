@@ -1,3 +1,4 @@
+import 'package:care_mall_rider/app/commenwidget/app_snackbar.dart';
 import 'package:care_mall_rider/app/commenwidget/apptext.dart';
 import 'package:care_mall_rider/app/theme_data/app_colors.dart';
 import 'package:care_mall_rider/src/modules/wallet/controller/wallet_controller.dart';
@@ -627,19 +628,16 @@ class _WalletScreenState extends State<WalletScreen> {
                         Get.back();
                         controller.requestWithdrawal(amount);
                       } else {
-                        Get.snackbar(
-                          'Insufficient Balance',
-                          'You cannot withdraw more than your available balance.',
-                          backgroundColor: Colors.red,
-                          colorText: Colors.white,
+                        AppSnackbar.showError(
+                          title: 'Insufficient Balance',
+                          message:
+                              'You cannot withdraw more than your available balance.',
                         );
                       }
                     } else {
-                      Get.snackbar(
-                        'Invalid Amount',
-                        'Please enter a valid amount to withdraw.',
-                        backgroundColor: Colors.red,
-                        colorText: Colors.white,
+                      AppSnackbar.showError(
+                        title: 'Invalid Amount',
+                        message: 'Please enter a valid amount to withdraw.',
                       );
                     }
                   }

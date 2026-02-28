@@ -164,17 +164,19 @@ class _HomeScreenState extends State<HomeScreen> {
     'confirmed',
     'processing',
     'dispatched',
+    'assigned',
   };
   static const _transitStatuses = {'shipped', 'out_for_delivery'};
   static const _historyStatuses = {'delivered', 'cancelled', 'failed'};
 
-  List<DeliveryOrder> get _newOrders =>
-      _allOrders.where((o) => _newStatuses.contains(o.orderStatus)).toList();
+  List<DeliveryOrder> get _newOrders => _allOrders
+      .where((o) => _newStatuses.contains(o.orderStatus.toLowerCase()))
+      .toList();
   List<DeliveryOrder> get _inTransitOrders => _allOrders
-      .where((o) => _transitStatuses.contains(o.orderStatus))
+      .where((o) => _transitStatuses.contains(o.orderStatus.toLowerCase()))
       .toList();
   List<DeliveryOrder> get _historyOrders => _allOrders
-      .where((o) => _historyStatuses.contains(o.orderStatus))
+      .where((o) => _historyStatuses.contains(o.orderStatus.toLowerCase()))
       .toList();
 
   /// Today's delivered COD orders for breakdown
@@ -676,24 +678,29 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     final orders = _currentOrders;
-    if (orders.isEmpty) {
-      return Center(
-        child: AppText(
-          text: 'No orders here',
-          fontSize: 14.sp,
-          fontWeight: FontWeight.w500,
-          color: Colors.grey[500]!,
-        ),
-      );
-    }
     return RefreshIndicator(
       onRefresh: _fetchOrders,
-      child: ListView.separated(
-        padding: EdgeInsets.all(16.w),
-        itemCount: orders.length,
-        separatorBuilder: (_, _) => SizedBox(height: 12.h),
-        itemBuilder: (context, index) => _buildOrderCard(orders[index]),
-      ),
+      child: orders.isEmpty
+          ? SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: SizedBox(
+                height: 400.h,
+                child: Center(
+                  child: AppText(
+                    text: 'No orders here',
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[500]!,
+                  ),
+                ),
+              ),
+            )
+          : ListView.separated(
+              padding: EdgeInsets.all(16.w),
+              itemCount: orders.length,
+              separatorBuilder: (_, _) => SizedBox(height: 12.h),
+              itemBuilder: (context, index) => _buildOrderCard(orders[index]),
+            ),
     );
   }
 
@@ -1095,8 +1102,6 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'shipped':
       case 'out_for_delivery':
         return const Color(0xFFE8F0FE);
-      case 'dispatched':
-        return const Color(0xFFFFF3E0);
       default:
         return const Color(0xFFF3F4F6);
     }
@@ -1112,8 +1117,6 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'shipped':
       case 'out_for_delivery':
         return const Color(0xFF1A56DB);
-      case 'dispatched':
-        return const Color(0xFFE65100);
       default:
         return const Color(0xFF374151);
     }

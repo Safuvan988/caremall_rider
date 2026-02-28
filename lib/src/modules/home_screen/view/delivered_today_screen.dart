@@ -19,12 +19,15 @@ class _DeliveredTodayScreenState extends State<DeliveredTodayScreen> {
   @override
   void initState() {
     super.initState();
-    _future = OrderRepo.getDashboard();
+    _future = OrderRepo.getDeliveredTodayData();
   }
 
-  void _refresh() => setState(() {
-    _future = OrderRepo.getDashboard();
-  });
+  Future<void> _refresh() async {
+    setState(() {
+      _future = OrderRepo.getDeliveredTodayData();
+    });
+    await _future;
+  }
 
   @override
   Widget build(BuildContext context) {

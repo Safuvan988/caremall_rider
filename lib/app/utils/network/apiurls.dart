@@ -2,7 +2,7 @@ class ApiUrls {
   // Base URL
   // Use 10.0.2.2 for Android Emulator to access host localhost
   // Use Your_PC_IP_Address for Physical Device (e.g., 192.168.1.x)
-  static const String baseURL = 'http://192.168.1.6:3000';
+  static const String baseURL = 'http://192.168.1.8:3000';
 
   // Auth
   static const String sendOtp =

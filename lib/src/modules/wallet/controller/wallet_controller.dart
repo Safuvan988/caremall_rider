@@ -4,6 +4,8 @@ import 'package:care_mall_rider/src/modules/wallet/model/wallet_model.dart';
 import 'package:care_mall_rider/src/modules/wallet/model/withdrawal_request_model.dart';
 import 'package:care_mall_rider/src/core/utils/logger_service.dart';
 
+import 'package:care_mall_rider/app/commenwidget/app_snackbar.dart';
+
 class WalletController extends GetxController {
   var isLoading = false.obs;
   var walletData = Rxn<WalletModel>();
@@ -37,16 +39,19 @@ class WalletController extends GetxController {
       isLoading(true);
       final result = await WalletRepo.requestWithdrawal(amount);
       if (result['success']) {
-        Get.snackbar('Success', result['message'] ?? 'Withdrawal requested');
+        AppSnackbar.showSuccess(
+          title: 'Success',
+          message: result['message'] ?? 'Withdrawal requested',
+        );
         await fetchWalletData(); // Refresh data
       } else {
-        Get.snackbar(
-          'Error',
-          result['message'] ?? 'Failed to request withdrawal',
+        AppSnackbar.showError(
+          title: 'Error',
+          message: result['message'] ?? 'Failed to request withdrawal',
         );
       }
     } catch (e) {
-      Get.snackbar('Error', 'An error occurred: $e');
+      AppSnackbar.showError(title: 'Error', message: 'An error occurred: $e');
     } finally {
       isLoading(false);
     }

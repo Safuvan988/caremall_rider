@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:care_mall_rider/app/app_buttons/app_buttons.dart';
+import 'package:care_mall_rider/app/commenwidget/app_snackbar.dart';
 import 'package:care_mall_rider/app/commenwidget/apptext.dart';
 import 'package:care_mall_rider/app/theme_data/app_colors.dart';
 import 'package:care_mall_rider/src/core/services/storage_service.dart';
@@ -145,18 +146,15 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
         MaterialPageRoute(builder: (_) => const HomeScreen()),
         (route) => false,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message'] ?? 'Application Submitted!'),
-          backgroundColor: Colors.green,
-        ),
+      AppSnackbar.showSuccess(
+        title: 'Application Submitted!',
+        message: result['message'] ?? 'Your application is being processed.',
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message'] ?? 'Submission failed.'),
-          backgroundColor: Colors.red,
-        ),
+      AppSnackbar.showError(
+        title: 'Submission Failed',
+        message:
+            result['message'] ?? 'Please check your details and try again.',
       );
     }
   }

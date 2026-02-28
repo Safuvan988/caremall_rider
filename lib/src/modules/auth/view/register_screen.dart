@@ -1,4 +1,5 @@
 import 'package:care_mall_rider/app/app_buttons/app_buttons.dart';
+import 'package:care_mall_rider/app/commenwidget/app_snackbar.dart';
 import 'package:care_mall_rider/app/commenwidget/apptext.dart';
 import 'package:care_mall_rider/app/theme_data/app_colors.dart';
 import 'package:care_mall_rider/app/utils/network/auth_service.dart';
@@ -48,11 +49,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
         if (mounted) {
           if (result['success']) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(result['message']),
-                backgroundColor: Colors.green,
-              ),
+            AppSnackbar.showSuccess(
+              title: 'OTP Sent',
+              message: result['message'],
             );
             // Navigate to OTP verification screen
             Navigator.push(
@@ -67,22 +66,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             );
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(result['message']),
-                backgroundColor: Colors.red,
-              ),
+            AppSnackbar.showError(
+              title: 'Registration Failed',
+              message: result['message'],
             );
           }
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: ${e.toString()}'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          AppSnackbar.showError(title: 'Error', message: e.toString());
         }
       } finally {
         if (mounted) {

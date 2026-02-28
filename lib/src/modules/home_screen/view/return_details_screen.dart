@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:care_mall_rider/app/app_buttons/app_buttons.dart';
+import 'package:care_mall_rider/app/commenwidget/app_snackbar.dart';
 import 'package:care_mall_rider/app/commenwidget/apptext.dart';
 import 'package:care_mall_rider/app/theme_data/app_colors.dart';
 import 'package:care_mall_rider/src/modules/home_screen/controller/order_repo.dart';
@@ -60,18 +61,17 @@ class _ReturnDetailsScreenState extends State<ReturnDetailsScreen> {
         status: status,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              result['success'] == true
-                  ? 'Status updated to ${status.replaceAll('_', ' ')}!'
-                  : result['message'] ?? 'Update failed.',
-            ),
-            backgroundColor: result['success'] == true
-                ? Colors.green
-                : Colors.red,
-          ),
-        );
+        if (result['success'] == true) {
+          AppSnackbar.showSuccess(
+            title: 'Success',
+            message: 'Status updated to ${status.replaceAll('_', ' ')}!',
+          );
+        } else {
+          AppSnackbar.showError(
+            title: 'Update Failed',
+            message: result['message'] ?? 'Update failed.',
+          );
+        }
         if (result['success'] == true) {
           _fetchDetail();
           _hasChanged = true;
@@ -88,9 +88,7 @@ class _ReturnDetailsScreenState extends State<ReturnDetailsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        AppSnackbar.showError(title: 'Error', message: 'An error occurred: $e');
       }
     } finally {
       if (mounted) setState(() => _updatingStatus = false);
@@ -141,20 +139,16 @@ class _ReturnDetailsScreenState extends State<ReturnDetailsScreen> {
 
     if (result['success'] == true) {
       setState(() => _photoUploaded = true);
+      AppSnackbar.showSuccess(
+        title: 'Success',
+        message: 'Photo uploaded successfully!',
+      );
+    } else {
+      AppSnackbar.showError(
+        title: 'Upload Failed',
+        message: result['message'] ?? 'Upload failed. Try again.',
+      );
     }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          result['success'] == true
-              ? 'Photo uploaded successfully!'
-              : result['message'] ?? 'Upload failed. Try again.',
-        ),
-        backgroundColor: result['success'] == true
-            ? Colors.green[700]
-            : Colors.red[700],
-      ),
-    );
   }
 
   ReturnOrder get _display => _detail ?? widget.returnOrder;
@@ -286,10 +280,9 @@ class _ReturnDetailsScreenState extends State<ReturnDetailsScreen> {
                             await launchUrl(uri);
                           } catch (_) {
                             if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Could not launch dialler.'),
-                                ),
+                              AppSnackbar.showError(
+                                title: 'Error',
+                                message: 'Could not launch dialler.',
                               );
                             }
                           }

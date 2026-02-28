@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:care_mall_rider/app/commenwidget/app_snackbar.dart';
 import 'package:care_mall_rider/app/commenwidget/apptext.dart';
 import 'package:care_mall_rider/app/theme_data/app_colors.dart';
 import 'package:care_mall_rider/src/modules/profile/controller/profile_repo.dart';
@@ -163,12 +164,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) {
-      Get.snackbar(
-        'Validation Error',
-        'Please fill all required fields correctly.',
-        backgroundColor: Colors.orange,
-        colorText: Colors.white,
-        snackPosition: SnackPosition.BOTTOM,
+      AppSnackbar.showError(
+        title: 'Validation Error',
+        message: 'Please fill all required fields correctly.',
       );
       return;
     }
@@ -199,28 +197,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         await StorageService.saveUserEmail(newEmail);
 
         Get.back(result: true);
-        Get.snackbar(
-          'Success',
-          'Profile updated successfully!',
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-          snackPosition: SnackPosition.BOTTOM,
+        AppSnackbar.showSuccess(
+          title: 'Success',
+          message: 'Profile updated successfully!',
         );
       } else {
-        Get.snackbar(
-          'Error',
-          result['message'] ?? 'Update failed',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
+        AppSnackbar.showError(
+          title: 'Error',
+          message: result['message'] ?? 'Update failed',
         );
       }
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Network error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      AppSnackbar.showError(title: 'Error', message: 'Network error: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }

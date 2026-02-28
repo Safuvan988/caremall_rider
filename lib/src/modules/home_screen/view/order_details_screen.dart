@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:care_mall_rider/app/app_buttons/app_buttons.dart';
+import 'package:care_mall_rider/app/commenwidget/app_snackbar.dart';
 import 'package:care_mall_rider/app/commenwidget/apptext.dart';
 import 'package:care_mall_rider/app/theme_data/app_colors.dart';
 import 'package:care_mall_rider/src/modules/home_screen/controller/order_repo.dart';
@@ -138,20 +139,16 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
     if (result['success'] == true) {
       setState(() => _photoUploaded = true);
+      AppSnackbar.showSuccess(
+        title: 'Success',
+        message: 'Photo uploaded successfully! You can now deliver.',
+      );
+    } else {
+      AppSnackbar.showError(
+        title: 'Upload Failed',
+        message: result['message'] ?? 'Upload failed. Try again.',
+      );
     }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          result['success'] == true
-              ? 'Photo uploaded successfully! You can now deliver.'
-              : result['message'] ?? 'Upload failed. Try again.',
-        ),
-        backgroundColor: result['success'] == true
-            ? Colors.green[700]
-            : Colors.red[700],
-      ),
-    );
   }
 
   Future<void> _reportFailedDelivery() async {
@@ -191,7 +188,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             onPressed: () async {
               final reason = reasonController.text.trim();
               if (reason.isEmpty) {
-                Get.snackbar('Error', 'Please provide a reason.');
+                AppSnackbar.showError(
+                  title: 'Error',
+                  message: 'Please provide a reason.',
+                );
                 return;
               }
               Get.back();
@@ -203,12 +203,15 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
               if (mounted) setState(() => _updatingStatus = false);
 
               if (result['success'] == true) {
-                Get.snackbar('Success', 'Delivery failure reported.');
+                AppSnackbar.showSuccess(
+                  title: 'Success',
+                  message: 'Delivery failure reported.',
+                );
                 _fetchDetail();
               } else {
-                Get.snackbar(
-                  'Error',
-                  result['message'] ?? 'Failed to report failure.',
+                AppSnackbar.showError(
+                  title: 'Error',
+                  message: result['message'] ?? 'Failed to report failure.',
                 );
               }
             },
@@ -227,11 +230,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     // If it's a COD order, ensure payment collected is checked
     final bool isCod = _display.isCod;
     if (isCod && !_paymentCollected) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please confirm payment collection for COD order.'),
-          backgroundColor: Colors.orange,
-        ),
+      AppSnackbar.showError(
+        title: 'Payment Required',
+        message: 'Please confirm payment collection for COD order.',
       );
       return;
     }
@@ -276,11 +277,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     if (mounted) setState(() => _updatingStatus = false);
 
     if (result['success'] == true) {
-      Get.snackbar(
-        'Success',
-        'Order delivered successfully!',
-        backgroundColor: Colors.green[700],
-        colorText: Colors.white,
+      AppSnackbar.showSuccess(
+        title: 'Success',
+        message: 'Order delivered successfully!',
       );
       _fetchDetail();
       _hasChanged = true;
@@ -291,7 +290,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         }
       } catch (_) {}
     } else {
-      Get.snackbar('Error', result['message'] ?? 'Failed to update status.');
+      AppSnackbar.showError(
+        title: 'Error',
+        message: result['message'] ?? 'Failed to update status.',
+      );
     }
   }
 
@@ -335,16 +337,17 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     if (mounted) setState(() => _updatingStatus = false);
 
     if (result['success'] == true) {
-      Get.snackbar(
-        'Success',
-        'Order picked up successfully!',
-        backgroundColor: Colors.green[700],
-        colorText: Colors.white,
+      AppSnackbar.showSuccess(
+        title: 'Success',
+        message: 'Order picked up successfully!',
       );
       _fetchDetail();
       _hasChanged = true;
     } else {
-      Get.snackbar('Error', result['message'] ?? 'Failed to update status.');
+      AppSnackbar.showError(
+        title: 'Error',
+        message: result['message'] ?? 'Failed to update status.',
+      );
     }
   }
 
@@ -558,8 +561,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                 await launchUrl(uri);
               } catch (_) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Could not launch dialler.')),
+                  AppSnackbar.showError(
+                    title: 'Error',
+                    message: 'Could not launch dialler.',
                   );
                 }
               }
@@ -908,7 +912,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                     ),
                     SizedBox(width: 8.w),
                     AppText(
-                      text: 'Pick up from Warehouse',
+                      text: 'Pick From Warehouse',
                       color: Colors.white,
                       fontSize: 15.sp,
                       fontWeight: FontWeight.w700,

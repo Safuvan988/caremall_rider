@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:care_mall_rider/app/app_buttons/app_buttons.dart';
+import 'package:care_mall_rider/app/commenwidget/app_snackbar.dart';
 import 'package:care_mall_rider/app/commenwidget/apptext.dart';
 import 'package:care_mall_rider/app/theme_data/app_colors.dart';
 import 'package:care_mall_rider/app/utils/network/auth_service.dart';
@@ -80,11 +81,9 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     final otp = _otpControllers.map((c) => c.text.trim()).join();
 
     if (otp.length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter the complete 6-digit OTP'),
-          backgroundColor: Colors.red,
-        ),
+      AppSnackbar.showError(
+        title: 'Invalid OTP',
+        message: 'Please enter the complete 6-digit OTP',
       );
       return;
     }
@@ -126,11 +125,9 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
 
       if (isSuccess) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message'] ?? 'OTP verified successfully!'),
-              backgroundColor: Colors.green,
-            ),
+          AppSnackbar.showSuccess(
+            title: 'Verified',
+            message: result['message'] ?? 'OTP verified successfully!',
           );
         }
         if (isSuccess) {
@@ -159,24 +156,15 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                result['message'] ?? 'Invalid OTP. Please try again.',
-              ),
-              backgroundColor: Colors.red,
-            ),
+          AppSnackbar.showError(
+            title: 'Verification Failed',
+            message: result['message'] ?? 'Invalid OTP. Please try again.',
           );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppSnackbar.showError(title: 'Error', message: e.toString());
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -197,12 +185,14 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message']),
-            backgroundColor: result['success'] ? Colors.green : Colors.red,
-          ),
-        );
+        if (result['success']) {
+          AppSnackbar.showSuccess(title: 'Resent', message: result['message']);
+        } else {
+          AppSnackbar.showError(
+            title: 'Resend Failed',
+            message: result['message'],
+          );
+        }
         if (result['success']) {
           setState(() {
             _start = 30;
@@ -212,12 +202,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppSnackbar.showError(title: 'Error', message: e.toString());
       }
     } finally {
       if (mounted) {

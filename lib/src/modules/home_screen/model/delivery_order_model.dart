@@ -64,7 +64,13 @@ class DeliveryOrder {
 
   /// Is this order in the "New" tab (not yet picked up)?
   bool get isInNewStatus {
-    const newStatuses = {'pending', 'confirmed', 'processing', 'dispatched'};
+    const newStatuses = {
+      'pending',
+      'confirmed',
+      'processing',
+      'dispatched',
+      'assigned',
+    };
     return newStatuses.contains(orderStatus.toLowerCase());
   }
 

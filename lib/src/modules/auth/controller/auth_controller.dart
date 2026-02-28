@@ -1,9 +1,6 @@
 import 'package:care_mall_rider/src/core/services/storage_service.dart';
 import 'package:care_mall_rider/src/modules/auth/controller/auth_repo.dart';
-import 'package:flutter/material.dart';
-import 'package:get/get_core/src/get_main.dart';
-import 'package:get/get_navigation/src/extension_navigation.dart';
-import 'package:get/get_navigation/src/snackbar/snackbar.dart';
+import 'package:care_mall_rider/app/commenwidget/app_snackbar.dart';
 import 'package:get/get_rx/src/rx_types/rx_types.dart';
 import 'package:get/get_state_manager/src/simple/get_controllers.dart';
 
@@ -58,31 +55,16 @@ class AuthController extends GetxController {
 
       if (result['success']) {
         phoneNumber.value = phone;
-        Get.snackbar(
-          'Success',
-          result['message'],
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-          snackPosition: SnackPosition.BOTTOM,
-        );
+        AppSnackbar.showSuccess(title: 'Success', message: result['message']);
         if (onSuccess != null) onSuccess();
       } else {
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-          snackPosition: SnackPosition.BOTTOM,
-        );
+        AppSnackbar.showError(title: 'Error', message: result['message']);
         if (onError != null) onError(result['message']);
       }
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to send OTP: ${e.toString()}',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-        snackPosition: SnackPosition.BOTTOM,
+      AppSnackbar.showError(
+        title: 'Error',
+        message: 'Failed to send OTP: ${e.toString()}',
       );
       if (onError != null) onError(e.toString());
     } finally {
@@ -119,31 +101,16 @@ class AuthController extends GetxController {
         phoneNumber.value = phone;
         userName.value = name;
         userEmail.value = email;
-        Get.snackbar(
-          'Success',
-          result['message'],
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-          snackPosition: SnackPosition.BOTTOM,
-        );
+        AppSnackbar.showSuccess(title: 'Success', message: result['message']);
         if (onSuccess != null) onSuccess();
       } else {
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-          snackPosition: SnackPosition.BOTTOM,
-        );
+        AppSnackbar.showError(title: 'Error', message: result['message']);
         if (onError != null) onError(result['message']);
       }
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to send OTP: ${e.toString()}',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-        snackPosition: SnackPosition.BOTTOM,
+      AppSnackbar.showError(
+        title: 'Error',
+        message: 'Failed to send OTP: ${e.toString()}',
       );
       if (onError != null) onError(e.toString());
     } finally {
@@ -205,31 +172,16 @@ class AuthController extends GetxController {
           await StorageService.savePhoneNumber(phone);
         }
 
-        Get.snackbar(
-          'Success',
-          result['message'],
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-          snackPosition: SnackPosition.BOTTOM,
-        );
+        AppSnackbar.showSuccess(title: 'Success', message: result['message']);
         if (onSuccess != null) onSuccess();
       } else {
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-          snackPosition: SnackPosition.BOTTOM,
-        );
+        AppSnackbar.showError(title: 'Error', message: result['message']);
         if (onError != null) onError(result['message']);
       }
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to verify OTP: ${e.toString()}',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-        snackPosition: SnackPosition.BOTTOM,
+      AppSnackbar.showError(
+        title: 'Error',
+        message: 'Failed to verify OTP: ${e.toString()}',
       );
       if (onError != null) onError(e.toString());
     } finally {
@@ -259,31 +211,16 @@ class AuthController extends GetxController {
       );
 
       if (result['success']) {
-        Get.snackbar(
-          'Success',
-          result['message'],
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-          snackPosition: SnackPosition.BOTTOM,
-        );
+        AppSnackbar.showSuccess(title: 'Success', message: result['message']);
         if (onSuccess != null) onSuccess();
       } else {
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-          snackPosition: SnackPosition.BOTTOM,
-        );
+        AppSnackbar.showError(title: 'Error', message: result['message']);
         if (onError != null) onError(result['message']);
       }
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to resend OTP: ${e.toString()}',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-        snackPosition: SnackPosition.BOTTOM,
+      AppSnackbar.showError(
+        title: 'Error',
+        message: 'Failed to resend OTP: ${e.toString()}',
       );
       if (onError != null) onError(e.toString());
     } finally {

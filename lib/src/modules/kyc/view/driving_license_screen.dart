@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:care_mall_rider/app/app_buttons/app_buttons.dart';
+import 'package:care_mall_rider/app/commenwidget/app_snackbar.dart';
 import 'package:care_mall_rider/app/commenwidget/apptext.dart';
 import 'package:care_mall_rider/app/theme_data/app_colors.dart';
 import 'package:care_mall_rider/app/utils/spaces.dart';
@@ -151,11 +152,9 @@ class _DrivingLicenseScreenState extends State<DrivingLicenseScreen> {
   void _saveAndContinue() {
     if (_formKey.currentState!.validate()) {
       if (_frontImage == null || _backImage == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please upload both front and back of your license.'),
-            backgroundColor: Colors.red,
-          ),
+        AppSnackbar.showError(
+          title: 'Upload Required',
+          message: 'Please upload both front and back of your license.',
         );
         return;
       }

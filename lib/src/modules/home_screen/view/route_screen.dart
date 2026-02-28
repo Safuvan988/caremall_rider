@@ -9,6 +9,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:math' show cos, sqrt, pi;
+import 'package:care_mall_rider/src/modules/home_screen/controller/order_repo.dart';
 
 // ─────────────────────────────────────────────
 // Utils
@@ -186,7 +187,10 @@ class TodayRoute {
       remainingStops:
           (json['remainingStops'] as num?)?.toInt() ??
           (json['remaining_stops'] as num?)?.toInt() ??
-          stops.where((s) => s.status != 'delivered').length,
+          stops.where((s) {
+            final st = s.status.toLowerCase();
+            return st != 'delivered' && st != 'cancelled';
+          }).length,
       totalDistanceKm: dist,
       etaMinutes: eta,
       riderLat: rLat,
@@ -220,39 +224,97 @@ Future<TodayRoute> fetchTodayRoute({
   if (response.statusCode == 200) {
     try {
       final decoded = jsonDecode(response.body);
+      TodayRoute baseRoute;
 
       // API may return a bare List or a Map wrapping the stops
       if (decoded is List) {
-        return TodayRoute.fromJson({'stops': decoded});
-      }
-
-      if (decoded is Map<String, dynamic>) {
-        // Try common wrapper keys for the stops list
+        baseRoute = TodayRoute.fromJson({'stops': decoded});
+      } else if (decoded is Map<String, dynamic>) {
         final innerStops =
             decoded['route'] ?? decoded['data'] ?? decoded['stops'];
 
-        // If the wrapper contains the stops list but also other fields (like totalDistanceKm)
-        // we pass the whole 'decoded' map to fromJson.
-        // If the wrapper is just a list, we wrap it.
-
         if (innerStops is List) {
-          // Before wrapping, let's see if the root 'decoded' had the stats
-          // If not, maybe the 'decoded' is the list itself (handled above)
-          // If 'innerStops' is the list, we might need to check if stats are in 'decoded'
-          return TodayRoute.fromJson(decoded);
+          baseRoute = TodayRoute.fromJson(decoded);
+        } else if (innerStops is Map<String, dynamic>) {
+          baseRoute = TodayRoute.fromJson(innerStops);
+        } else {
+          baseRoute = TodayRoute.fromJson(decoded);
         }
-
-        if (innerStops is Map<String, dynamic>) {
-          return TodayRoute.fromJson(innerStops);
-        }
-
-        // Fall back: treat the whole body as the route object
-        return TodayRoute.fromJson(decoded);
+      } else {
+        throw Exception('Unexpected JSON shape: ${response.body}');
       }
 
-      throw Exception('Unexpected JSON shape: ${response.body}');
+      // Sync with actual delivery orders to override stale backend statuses
+      try {
+        final actualOrders = await OrderRepo.getDeliveryOrders();
+
+        List<RouteStop> syncedStops = [];
+
+        if (baseRoute.stops.isEmpty) {
+          // Fallback: Generate stops from active orders
+          final activeOrders = actualOrders.where((o) {
+            final st = o.orderStatus.toLowerCase();
+            return st != 'delivered' && st != 'cancelled' && st != 'failed';
+          }).toList();
+
+          for (int i = 0; i < activeOrders.length; i++) {
+            final o = activeOrders[i];
+            syncedStops.add(
+              RouteStop(
+                orderId: o.orderId,
+                customerName: o.shippingAddress.fullName.isNotEmpty
+                    ? o.shippingAddress.fullName
+                    : 'Unknown',
+                address: o.fullAddress.isNotEmpty ? o.fullAddress : '-',
+                phone: o.shippingAddress.phone.isNotEmpty
+                    ? o.shippingAddress.phone
+                    : '-',
+                status: o.orderStatus,
+                stopNumber: i + 1,
+              ),
+            );
+          }
+        } else {
+          syncedStops = baseRoute.stops.map((stop) {
+            final realOrder = actualOrders
+                .where((o) => o.orderId == stop.orderId)
+                .firstOrNull;
+            if (realOrder != null) {
+              // Override with the fresh order status from the delivery/orders API
+              return RouteStop(
+                orderId: stop.orderId,
+                customerName: stop.customerName,
+                address: stop.address,
+                phone: stop.phone,
+                status: realOrder.orderStatus,
+                stopNumber: stop.stopNumber,
+                lat: stop.lat,
+                lng: stop.lng,
+              );
+            }
+            return stop;
+          }).toList();
+        }
+
+        final syncedRemaining = syncedStops.where((s) {
+          final st = s.status.toLowerCase();
+          return st != 'delivered' && st != 'cancelled';
+        }).length;
+
+        return TodayRoute(
+          totalStops: baseRoute.totalStops,
+          remainingStops: syncedRemaining,
+          totalDistanceKm: baseRoute.totalDistanceKm,
+          etaMinutes: baseRoute.etaMinutes,
+          riderLat: baseRoute.riderLat,
+          riderLng: baseRoute.riderLng,
+          stops: syncedStops,
+        );
+      } catch (e) {
+        debugPrint('Failed to sync route with live orders: $e');
+        return baseRoute;
+      }
     } catch (e) {
-      // Re-throw with raw body so the error screen shows useful info
       throw Exception('Parse error: $e\n\nRaw response:\n${response.body}');
     }
   } else {
@@ -280,10 +342,11 @@ class _RouteScreenState extends State<RouteScreen> {
     _routeFuture = fetchTodayRoute();
   }
 
-  void _refresh() {
+  Future<void> _refresh() async {
     setState(() {
       _routeFuture = fetchTodayRoute();
     });
+    await _routeFuture;
   }
 
   @override
@@ -532,39 +595,39 @@ class _StopCard extends StatelessWidget {
 
   const _StopCard({required this.stop, required this.index});
 
-  Color get _statusColor {
-    switch (stop.status.toLowerCase()) {
+  Color _statusBadgeBg(String status) {
+    switch (status.toLowerCase()) {
       case 'delivered':
-        return Colors.green;
+        return const Color(0xFFE6F4EE);
+      case 'cancelled':
+      case 'failed':
+        return const Color(0xFFFFE3E3);
+      case 'shipped':
+      case 'out_for_delivery':
       case 'in_transit':
       case 'in-transit':
       case 'picked_up':
-        return Colors.orange;
-      case 'failed':
-      case 'cancelled':
-        return Colors.red;
+        return const Color(0xFFE8F0FE);
       default:
-        return Colors.blueGrey;
+        return const Color(0xFFF3F4F6);
     }
   }
 
-  String get _statusLabel {
-    switch (stop.status.toLowerCase()) {
+  Color _statusBadgeFg(String status) {
+    switch (status.toLowerCase()) {
       case 'delivered':
-        return 'Delivered';
+        return const Color(0xFF1E7E4C);
+      case 'cancelled':
+      case 'failed':
+        return Colors.red;
+      case 'shipped':
+      case 'out_for_delivery':
       case 'in_transit':
       case 'in-transit':
-        return 'In Transit';
       case 'picked_up':
-        return 'Picked Up';
-      case 'failed':
-        return 'Failed';
-      case 'cancelled':
-        return 'Cancelled';
-      case 'pending':
-        return 'Pending';
+        return const Color(0xFF1A56DB);
       default:
-        return stop.status;
+        return const Color(0xFF374151);
     }
   }
 
@@ -622,17 +685,17 @@ class _StopCard extends StatelessWidget {
                     Container(
                       padding: EdgeInsets.symmetric(
                         horizontal: 8.w,
-                        vertical: 3.h,
+                        vertical: 4.h,
                       ),
                       decoration: BoxDecoration(
-                        color: _statusColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20.r),
+                        color: _statusBadgeBg(stop.status),
+                        borderRadius: BorderRadius.circular(4.r),
                       ),
                       child: AppText(
-                        text: _statusLabel,
+                        text: stop.status.replaceAll('_', ' ').toUpperCase(),
                         fontSize: 11.sp,
                         fontWeight: FontWeight.w600,
-                        color: _statusColor,
+                        color: _statusBadgeFg(stop.status),
                       ),
                     ),
                   ],
