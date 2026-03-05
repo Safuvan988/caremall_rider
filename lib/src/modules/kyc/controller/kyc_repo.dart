@@ -95,6 +95,9 @@ class KycRepo {
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        // If submission successful, tentatively mark as under_review
+        await StorageService.saveKycStatus('under_review');
+
         return {
           'success': true,
           'message': responseData['message'] ?? 'KYC submitted successfully!',
@@ -133,12 +136,19 @@ class KycRepo {
 
       final responseData = jsonDecode(response.body);
 
-      if (response.statusCode == 200) {
-        return {
-          'success': true,
-          'status': responseData['status'] ?? 'pending',
-          'data': responseData,
-        };
+      if (responseData['success'] == true || response.statusCode == 200) {
+        // Robust extraction: check root, 'data', or 'kyc' fields
+        final status =
+            (responseData['status'] ??
+                    responseData['data']?['status'] ??
+                    responseData['kyc']?['status'] ??
+                    'pending')
+                .toString();
+
+        // Sync with local storage
+        await StorageService.saveKycStatus(status);
+
+        return {'success': true, 'status': status, 'data': responseData};
       } else {
         return {
           'success': false,

@@ -3,7 +3,6 @@ import 'package:care_mall_rider/app/app_buttons/app_buttons.dart';
 import 'package:care_mall_rider/app/commenwidget/app_snackbar.dart';
 import 'package:care_mall_rider/app/commenwidget/apptext.dart';
 import 'package:care_mall_rider/app/theme_data/app_colors.dart';
-import 'package:care_mall_rider/app/utils/spaces.dart';
 import 'package:care_mall_rider/src/modules/kyc/view/bank_details_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -124,29 +123,6 @@ class _DrivingLicenseScreenState extends State<DrivingLicenseScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _selectDate(TextEditingController controller) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(1950),
-      lastDate: DateTime(2100),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: AppColors.primarycolor,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (picked != null) {
-      controller.text =
-          '${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}';
-    }
   }
 
   void _saveAndContinue() {
@@ -287,52 +263,6 @@ class _DrivingLicenseScreenState extends State<DrivingLicenseScreen> {
             ),
             SizedBox(height: 20.h),
 
-            // ── License Number ─────────────────────────────────────────
-            AppText(
-              text: 'License Number',
-              fontSize: 13.sp,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textnaturalcolor,
-            ),
-            defaultSpacerSmall,
-            _InputField(
-              controller: _licenseNumberController,
-              hint: 'Enter License Number',
-              textCapitalization: TextCapitalization.characters,
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
-                _UpperCaseTextFormatter(),
-              ],
-              validator: (v) => (v == null || v.isEmpty)
-                  ? 'Please enter license number'
-                  : null,
-            ),
-            SizedBox(height: 16.h),
-
-            // ── Expiry Date ────────────────────────────────────────────
-            AppText(
-              text: 'Expiry Date',
-              fontSize: 13.sp,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textnaturalcolor,
-            ),
-            defaultSpacerSmall,
-            _InputField(
-              controller: _expiryController,
-              hint: 'Enter Expiry Date',
-              readOnly: true,
-              onTap: () => _selectDate(_expiryController),
-              suffixIcon: Icon(
-                Icons.calendar_today_outlined,
-                size: 18.sp,
-                color: AppColors.textDefaultSecondarycolor,
-              ),
-              validator: (v) =>
-                  (v == null || v.isEmpty) ? 'Please select expiry date' : null,
-            ),
-            SizedBox(height: 20.h),
-
-            // ── Tips Card ──────────────────────────────────────────────
             const _TipsCard(),
             SizedBox(height: 28.h),
 
@@ -477,76 +407,6 @@ class _ImageUploadBox extends StatelessWidget {
   }
 }
 
-// ─── Reusable Input Field ──────────────────────────────────────────────────────
-class _InputField extends StatelessWidget {
-  final TextEditingController controller;
-  final String hint;
-  final bool readOnly;
-  final VoidCallback? onTap;
-  final Widget? suffixIcon;
-  final String? Function(String?)? validator;
-  final List<TextInputFormatter>? inputFormatters;
-  final TextCapitalization textCapitalization;
-
-  const _InputField({
-    required this.controller,
-    required this.hint,
-    this.readOnly = false,
-    this.onTap,
-    this.suffixIcon,
-    this.validator,
-    this.inputFormatters,
-    this.textCapitalization = TextCapitalization.none,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      readOnly: readOnly,
-      onTap: onTap,
-      textCapitalization: textCapitalization,
-      inputFormatters: inputFormatters,
-      style: TextStyle(fontSize: 14.sp, color: Colors.black87),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(
-          color: AppColors.textDefaultTertiarycolor,
-          fontSize: 14.sp,
-        ),
-        suffixIcon: suffixIcon,
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10.r),
-          borderSide: BorderSide(color: Colors.grey[200]!),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10.r),
-          borderSide: BorderSide(color: Colors.grey[200]!),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10.r),
-          borderSide: const BorderSide(
-            color: AppColors.primarycolor,
-            width: 1.5,
-          ),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10.r),
-          borderSide: const BorderSide(color: Colors.red, width: 1.2),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10.r),
-          borderSide: const BorderSide(color: Colors.red, width: 1.5),
-        ),
-      ),
-      validator: validator,
-    );
-  }
-}
-
 // ─── Tips Card ─────────────────────────────────────────────────────────────────
 class _TipsCard extends StatelessWidget {
   const _TipsCard();
@@ -610,16 +470,5 @@ class _TipsCard extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-// ─── Upper Case Text Formatter ─────────────────────────────────────────────────
-class _UpperCaseTextFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    return newValue.copyWith(text: newValue.text.toUpperCase());
   }
 }

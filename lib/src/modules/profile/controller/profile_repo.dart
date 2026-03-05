@@ -41,6 +41,7 @@ class ProfileRepo {
     // Vehicle
     String? vehicleType,
     String? registrationNumber,
+    bool removeAvatar = false,
   }) async {
     final token = await StorageService.getAuthToken();
     final request = http.MultipartRequest(
@@ -84,6 +85,9 @@ class ProfileRepo {
     if (vehicleType != null) request.fields['vehicleType'] = vehicleType;
     if (registrationNumber != null) {
       request.fields['registrationNumber'] = registrationNumber;
+    }
+    if (removeAvatar) {
+      request.fields['removeAvatar'] = 'true';
     }
 
     final streamedResponse = await request.send();

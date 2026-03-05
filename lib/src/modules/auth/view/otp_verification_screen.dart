@@ -132,15 +132,8 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
         }
         if (isSuccess) {
           // Check KYC status before navigating
-          final kycResult = await KycRepo.getKycStatus();
-          bool isKycDone = false;
-          if (kycResult['success'] == true) {
-            final status = kycResult['status']?.toString().toLowerCase();
-            if (status == 'verified' || status == 'under_review') {
-              isKycDone = true;
-              await StorageService.saveKycCompleted(true);
-            }
-          }
+          await KycRepo.getKycStatus();
+          final bool isKycDone = await StorageService.isKycCompleted();
 
           if (mounted) {
             Navigator.pushAndRemoveUntil(

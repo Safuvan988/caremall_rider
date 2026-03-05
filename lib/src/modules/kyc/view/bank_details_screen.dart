@@ -29,6 +29,7 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
 
   // UPI controllers
   final _upiNumberController = TextEditingController();
+  final _upiIdController = TextEditingController();
 
   bool _isLoading = false;
 
@@ -39,6 +40,7 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
     _ifscController.dispose();
     _bankNameController.dispose();
     _upiNumberController.dispose();
+    _upiIdController.dispose();
     super.dispose();
   }
 
@@ -52,7 +54,7 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
         accountNumber: _accountNumberController.text,
         ifscCode: _ifscController.text,
         bankName: _bankNameController.text,
-        upiId: '',
+        upiId: _upiIdController.text,
         upiNumber: _upiNumberController.text,
       );
 
@@ -235,6 +237,48 @@ class _BankDetailsScreenState extends State<BankDetailsScreen> {
                 validator: (v) => (v == null || v.length < 10)
                     ? 'Enter valid mobile number'
                     : null,
+              ),
+              SizedBox(height: 16.h),
+
+              Row(
+                children: [
+                  AppText(
+                    text: 'UPI ID',
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textnaturalcolor,
+                  ),
+                  SizedBox(width: 6.w),
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 6.w,
+                      vertical: 2.h,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEEF4FF),
+                      borderRadius: BorderRadius.circular(4.r),
+                    ),
+                    child: AppText(
+                      text: 'Optional',
+                      fontSize: 10.sp,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFF4A6CF7),
+                    ),
+                  ),
+                ],
+              ),
+              defaultSpacerSmall,
+              _InputField(
+                controller: _upiIdController,
+                hint: 'e.g. name@upi',
+                keyboardType: TextInputType.emailAddress,
+                validator: (v) {
+                  if (v == null || v.isEmpty) return null; // optional
+                  final upiRegex = RegExp(r'^[\w.\-]+@[a-zA-Z]+$');
+                  return upiRegex.hasMatch(v)
+                      ? null
+                      : 'Enter a valid UPI ID (e.g. name@upi)';
+                },
               ),
             ],
 

@@ -6,7 +6,7 @@ class StorageService {
   static const String _phoneNumberKey = 'phone_number';
   static const String _userNameKey = 'user_name';
   static const String _userEmailKey = 'user_email';
-  static const String _kycCompletedKey = 'kyc_completed';
+  static const String _kycStatusKey = 'kyc_status';
 
   static SharedPreferences? _prefs;
 
@@ -71,16 +71,30 @@ class StorageService {
     return prefs.getString(_userEmailKey);
   }
 
-  /// Mark KYC as completed
+  /// Mark KYC as completed (legacy support, now sets status to under_review)
   static Future<bool> saveKycCompleted(bool completed) async {
-    final prefs = await _instance;
-    return await prefs.setBool(_kycCompletedKey, completed);
+    if (completed) {
+      return await saveKycStatus('under_review');
+    }
+    return true;
   }
 
   /// Check if KYC has been completed
   static Future<bool> isKycCompleted() async {
+    final status = await getKycStatus();
+    return status == 'verified' || status == 'under_review';
+  }
+
+  /// Save KYC status (pending, under_review, verified, rejected)
+  static Future<bool> saveKycStatus(String status) async {
     final prefs = await _instance;
-    return prefs.getBool(_kycCompletedKey) ?? false;
+    return await prefs.setString(_kycStatusKey, status);
+  }
+
+  /// Get saved KYC status
+  static Future<String> getKycStatus() async {
+    final prefs = await _instance;
+    return prefs.getString(_kycStatusKey) ?? 'pending';
   }
 
   /// Clear all authentication data
@@ -90,7 +104,7 @@ class StorageService {
     await prefs.remove(_phoneNumberKey);
     await prefs.remove(_userNameKey);
     await prefs.remove(_userEmailKey);
-    await prefs.remove(_kycCompletedKey);
+    await prefs.remove(_kycStatusKey);
     return true;
   }
 

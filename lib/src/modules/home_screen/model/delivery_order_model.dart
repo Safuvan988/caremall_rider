@@ -70,15 +70,26 @@ class DeliveryOrder {
       'processing',
       'dispatched',
       'assigned',
+      'accepted',
+      'new',
     };
     return newStatuses.contains(orderStatus.toLowerCase());
   }
 
   /// Is this order in the "In Transit" tab?
   bool get isInTransitStatus {
-    const transitStatuses = {'shipped', 'out_for_delivery'};
+    const transitStatuses = {
+      'shipped',
+      'out_for_delivery',
+      'in_transit',
+      'in-transit',
+      'picked_up',
+    };
     return transitStatuses.contains(orderStatus.toLowerCase());
   }
+
+  /// Is this order active (either New or In Transit)?
+  bool get isActive => isInNewStatus || isInTransitStatus;
 }
 
 class OrderItem {

@@ -82,7 +82,7 @@ class AppSnackbar {
         ),
       ],
       snackPosition: SnackPosition.TOP,
-      duration: const Duration(seconds: 3),
+      duration: const Duration(seconds: 1),
       animationDuration: const Duration(milliseconds: 300),
       isDismissible: true,
       forwardAnimationCurve: Curves.easeOutBack,

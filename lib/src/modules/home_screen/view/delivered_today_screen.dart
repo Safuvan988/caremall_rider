@@ -243,34 +243,34 @@ class _SummaryCard extends StatelessWidget {
                   icon: Icons.local_shipping_rounded,
                 ),
               ),
-              Expanded(
-                child: _StatItem(
-                  label: 'COD Collected',
-                  value: '₹${summary.todayCodCollected.toStringAsFixed(0)}',
-                  icon: Icons.account_balance_wallet_rounded,
-                ),
-              ),
+              // Expanded(
+              //   child: _StatItem(
+              //     label: 'COD Collected',
+              //     value: '₹${summary.todayCodCollected.toStringAsFixed(0)}',
+              //     icon: Icons.account_balance_wallet_rounded,
+              //   ),
+              // ),
             ],
           ),
           SizedBox(height: 10.h),
-          Row(
-            children: [
-              Expanded(
-                child: _StatItem(
-                  label: 'Pending',
-                  value: '${summary.pendingOrders}',
-                  icon: Icons.pending_actions_rounded,
-                ),
-              ),
-              Expanded(
-                child: _StatItem(
-                  label: 'Total Earned',
-                  value: '₹${summary.totalEarned.toStringAsFixed(0)}',
-                  icon: Icons.trending_up_rounded,
-                ),
-              ),
-            ],
-          ),
+          // Row(
+          //   children: [
+          //     Expanded(
+          //       child: _StatItem(
+          //         label: 'Pending',
+          //         value: '${summary.pendingOrders}',
+          //         icon: Icons.pending_actions_rounded,
+          //       ),
+          //     ),
+          //     Expanded(
+          //       child: _StatItem(
+          //         label: 'Total Earned',
+          //         value: '₹${summary.totalEarned.toStringAsFixed(0)}',
+          //         icon: Icons.trending_up_rounded,
+          //       ),
+          //     ),
+          //   ],
+          // ),
         ],
       ),
     );

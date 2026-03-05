@@ -1,31 +1,17 @@
 class DashboardSummary {
-  final num todayCodCollected;
   final int todayDeliveries;
-  final int pendingOrders;
-  final int totalDeliveries;
-  final num totalCodCollected;
-  final num walletBalance;
-  final num totalEarned;
 
-  const DashboardSummary({
-    required this.todayCodCollected,
-    required this.todayDeliveries,
-    required this.pendingOrders,
-    required this.totalDeliveries,
-    required this.totalCodCollected,
-    required this.walletBalance,
-    required this.totalEarned,
-  });
+  const DashboardSummary({required this.todayDeliveries});
 
   factory DashboardSummary.fromJson(Map<String, dynamic> json) {
     return DashboardSummary(
-      todayCodCollected: (json['todayCodCollected'] as num?) ?? 0,
-      todayDeliveries: (json['todayDeliveries'] as num?)?.toInt() ?? 0,
-      pendingOrders: (json['pendingOrders'] as num?)?.toInt() ?? 0,
-      totalDeliveries: (json['totalDeliveries'] as num?)?.toInt() ?? 0,
-      totalCodCollected: (json['totalCodCollected'] as num?) ?? 0,
-      walletBalance: (json['walletBalance'] as num?) ?? 0,
-      totalEarned: (json['totalEarned'] as num?) ?? 0,
+      todayDeliveries:
+          ((json['todayDeliveries'] ??
+                      json['totalDeliveredToday'] ??
+                      json['deliveredToday'] ??
+                      0)
+                  as num)
+              .toInt(),
     );
   }
 }
@@ -101,9 +87,12 @@ class TodayOrder {
       finalAmount: amount,
       codCharge: (json['codCharge'] as num?) ?? 0,
       isDelivered:
-          json['isDelivered'] == true || json['orderStatus'] == 'delivered',
-      deliveredAt: json['deliveredAt'] != null
-          ? DateTime.tryParse(json['deliveredAt'].toString())
+          json['isDelivered'] == true ||
+          json['orderStatus']?.toString().toLowerCase() == 'delivered',
+      deliveredAt: (json['deliveredAt'] ?? json['delivered_at']) != null
+          ? DateTime.tryParse(
+              (json['deliveredAt'] ?? json['delivered_at']).toString(),
+            )
           : null,
       shippingAddress: addr is Map<String, dynamic>
           ? TodayOrderAddress.fromJson(addr)
@@ -136,14 +125,16 @@ class DashboardModel {
   });
 
   factory DashboardModel.fromJson(Map<String, dynamic> json) {
-    var rawSummary = json['summary'];
-    // Fallback to 'orders' if 'todayOrders' is missing
-    final rawOrders = json['todayOrders'] ?? json['orders'];
+    final rawOrders =
+        json['todayOrders'] ?? json['orders'] ?? json['data'] ?? [];
 
     final List<TodayOrder> allOrders = rawOrders is List
-        ? rawOrders
-              .map((e) => TodayOrder.fromJson(e as Map<String, dynamic>))
-              .toList()
+        ? rawOrders.map((e) {
+            if (e is Map) {
+              return TodayOrder.fromJson(Map<String, dynamic>.from(e));
+            }
+            return TodayOrder.fromJson({});
+          }).toList()
         : [];
 
     // Filter to only show orders delivered TODAY on this specific screen
@@ -156,39 +147,10 @@ class DashboardModel {
       return d.year == now.year && d.month == now.month && d.day == now.day;
     }).toList();
 
-    // If summary is missing, calculate it locally for "Today"
-    if (rawSummary == null) {
-      final now = DateTime.now();
-      final todayOrders = orders.where((o) {
-        if (o.deliveredAt == null) return false;
-        final d = o.deliveredAt!.toLocal();
-        return d.year == now.year && d.month == now.month && d.day == now.day;
-      }).toList();
-
-      double cod = 0;
-      for (var o in todayOrders) {
-        if (o.paymentMethod.toLowerCase() == 'cod') {
-          cod += o.finalAmount;
-        }
-      }
-
-      rawSummary = {
-        'todayCodCollected': cod,
-        'todayDeliveries': todayOrders.length,
-        'pendingOrders': orders
-            .where((o) => !o.isDelivered && o.orderStatus != 'cancelled')
-            .length,
-        'totalDeliveries': orders.where((o) => o.isDelivered).length,
-        'totalCodCollected': cod, // Placeholder
-        'walletBalance': 0,
-        'totalEarned': 0,
-      };
-    }
-
     return DashboardModel(
       success: json['success'] == true,
       date: json['date']?.toString() ?? '',
-      summary: DashboardSummary.fromJson(rawSummary as Map<String, dynamic>),
+      summary: DashboardSummary(todayDeliveries: orders.length),
       todayOrders: orders,
     );
   }

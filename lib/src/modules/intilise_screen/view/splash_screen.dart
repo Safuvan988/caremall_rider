@@ -4,6 +4,7 @@ import 'package:care_mall_rider/gen/assets.gen.dart';
 import 'package:care_mall_rider/src/core/services/storage_service.dart';
 import 'package:care_mall_rider/src/modules/auth/view/login_screen.dart';
 import 'package:care_mall_rider/src/modules/home_screen/view/home_screen.dart';
+import 'package:care_mall_rider/src/modules/kyc/controller/kyc_repo.dart';
 import 'package:care_mall_rider/src/modules/kyc/view/kyc_verification_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -38,17 +39,20 @@ class _SplashScreenState extends State<SplashScreen> {
         MaterialPageRoute(builder: (_) => const LoginScreen()),
       );
     } else {
+      // Proactively fetch latest KYC status from API if logged in
+      await KycRepo.getKycStatus();
+
       final kycDone = await StorageService.isKycCompleted();
       if (!mounted) return;
 
       if (kycDone) {
-        // Logged in + KYC done → go to Home
+        // Logged in + KYC done (verified or under_review) → go to Home
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const HomeScreen()),
         );
       } else {
-        // Logged in but KYC pending → go to KYC
+        // Logged in but KYC pending or rejected → go to KYC
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const KycVerificationScreen()),

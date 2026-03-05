@@ -20,8 +20,11 @@ class WalletRepo {
         .timeout(const Duration(seconds: 10));
 
     if (response.statusCode == 200) {
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
-      return WalletModel.fromJson(body);
+      final body = Map<String, dynamic>.from(jsonDecode(response.body));
+      final data = body['data'] ?? body['wallet'] ?? body;
+      return WalletModel.fromJson(
+        Map<String, dynamic>.from(data is Map ? data : body),
+      );
     } else {
       throw Exception(
         'Failed to load wallet data (${response.statusCode}): ${response.body}',

@@ -250,38 +250,17 @@ Future<TodayRoute> fetchTodayRoute({
 
         List<RouteStop> syncedStops = [];
 
-        if (baseRoute.stops.isEmpty) {
-          // Fallback: Generate stops from active orders
-          final activeOrders = actualOrders.where((o) {
-            final st = o.orderStatus.toLowerCase();
-            return st != 'delivered' && st != 'cancelled' && st != 'failed';
-          }).toList();
+        // 1. Sync existing backend stops with fresh data
+        final existingRouteOrderIds = <String>{};
+        for (final stop in baseRoute.stops) {
+          final realOrder = actualOrders
+              .where((o) => o.orderId == stop.orderId)
+              .firstOrNull;
 
-          for (int i = 0; i < activeOrders.length; i++) {
-            final o = activeOrders[i];
+          if (realOrder != null) {
+            existingRouteOrderIds.add(stop.orderId);
             syncedStops.add(
               RouteStop(
-                orderId: o.orderId,
-                customerName: o.shippingAddress.fullName.isNotEmpty
-                    ? o.shippingAddress.fullName
-                    : 'Unknown',
-                address: o.fullAddress.isNotEmpty ? o.fullAddress : '-',
-                phone: o.shippingAddress.phone.isNotEmpty
-                    ? o.shippingAddress.phone
-                    : '-',
-                status: o.orderStatus,
-                stopNumber: i + 1,
-              ),
-            );
-          }
-        } else {
-          syncedStops = baseRoute.stops.map((stop) {
-            final realOrder = actualOrders
-                .where((o) => o.orderId == stop.orderId)
-                .firstOrNull;
-            if (realOrder != null) {
-              // Override with the fresh order status from the delivery/orders API
-              return RouteStop(
                 orderId: stop.orderId,
                 customerName: stop.customerName,
                 address: stop.address,
@@ -290,19 +269,44 @@ Future<TodayRoute> fetchTodayRoute({
                 stopNumber: stop.stopNumber,
                 lat: stop.lat,
                 lng: stop.lng,
-              );
-            }
-            return stop;
-          }).toList();
+              ),
+            );
+          } else {
+            // Keep anyway if not found in current refresh
+            syncedStops.add(stop);
+          }
+        }
+
+        // 2. Append missing "New" and "In Transit" orders
+        final missingActiveOrders = actualOrders.where((o) {
+          return o.isActive && !existingRouteOrderIds.contains(o.orderId);
+        }).toList();
+
+        int nextStopNum = syncedStops.length + 1;
+        for (final o in missingActiveOrders) {
+          syncedStops.add(
+            RouteStop(
+              orderId: o.orderId,
+              customerName: o.shippingAddress.fullName.isNotEmpty
+                  ? o.shippingAddress.fullName
+                  : 'Unknown',
+              address: o.fullAddress.isNotEmpty ? o.fullAddress : '-',
+              phone: o.shippingAddress.phone.isNotEmpty
+                  ? o.shippingAddress.phone
+                  : '-',
+              status: o.orderStatus,
+              stopNumber: nextStopNum++,
+            ),
+          );
         }
 
         final syncedRemaining = syncedStops.where((s) {
           final st = s.status.toLowerCase();
-          return st != 'delivered' && st != 'cancelled';
+          return st != 'delivered' && st != 'cancelled' && st != 'failed';
         }).length;
 
         return TodayRoute(
-          totalStops: baseRoute.totalStops,
+          totalStops: syncedStops.length,
           remainingStops: syncedRemaining,
           totalDistanceKm: baseRoute.totalDistanceKm,
           etaMinutes: baseRoute.etaMinutes,
@@ -534,11 +538,7 @@ class _SummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AppText(
-            text: 'Route for Today',
-            fontSize: 12.sp,
-            color: Colors.white70,
-          ),
+          AppText(text: 'Stops Left', fontSize: 12.sp, color: Colors.white70),
           SizedBox(height: 8.h),
           Row(
             children: [

@@ -42,6 +42,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _regCtrl;
 
   bool _loading = false;
+  bool _removeAvatar = false;
 
   static const List<String> _vehicleOptions = [
     'Bike',
@@ -148,6 +149,29 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   Navigator.pop(context);
                 },
               ),
+              if (_selectedImage != null || widget.profile.avatar.isNotEmpty)
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: const Color(0xFFFFEBEE),
+                    radius: 20.r,
+                    child: Icon(
+                      Icons.delete_outline_rounded,
+                      color: Colors.red[600],
+                      size: 20.sp,
+                    ),
+                  ),
+                  title: Text(
+                    'Remove Photo',
+                    style: TextStyle(fontSize: 16.sp, color: Colors.red[600]),
+                  ),
+                  onTap: () {
+                    setState(() {
+                      _selectedImage = null;
+                      _removeAvatar = true;
+                    });
+                    Navigator.pop(context);
+                  },
+                ),
             ],
           ),
         ),
@@ -157,7 +181,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (source != null) {
       final picked = await picker.pickImage(source: source!, imageQuality: 90);
       if (picked != null) {
-        setState(() => _selectedImage = File(picked.path));
+        setState(() {
+          _selectedImage = File(picked.path);
+          _removeAvatar = false;
+        });
       }
     }
   }
@@ -187,6 +214,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         upiNumber: _paymentMode == 'upi' ? _upiNumberCtrl.text.trim() : null,
         vehicleType: _vehicleType,
         registrationNumber: _regCtrl.text.trim(),
+        removeAvatar: _removeAvatar,
       );
 
       if (result['success'] == true) {
@@ -338,8 +366,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   child: CircleAvatar(
                     radius: 50.r,
                     backgroundColor: Colors.white,
-                    backgroundImage: imgProvider,
-                    child: !hasImage
+                    backgroundImage: _removeAvatar ? null : imgProvider,
+                    child: (!hasImage || _removeAvatar)
                         ? SvgPicture.asset(
                             'assets/icons/user.svg',
                             width: 38.sp,
@@ -398,8 +426,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               BlendMode.srcIn,
             ),
           ),
-          validator: (v) =>
-              (v == null || v.trim().isEmpty) ? 'Name is required' : null,
+          validator: (v) {
+            if (v == null || v.trim().isEmpty) return 'Name is required';
+            if (v.trim().length < 3)
+              return 'Name must be at least 3 characters';
+            if (!RegExp(r'^[a-zA-Z\s]+$').hasMatch(v.trim())) {
+              return 'Enter a valid name (letters and spaces only)';
+            }
+            return null;
+          },
         ),
         SizedBox(height: 16.h),
         _EditField(
@@ -474,9 +509,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            validator: (v) => (v == null || v.length < 6)
-                ? 'Enter valid account number'
-                : null,
+            validator: (v) {
+              if (v == null || v.isEmpty) return 'Required';
+              if (v.length < 9 || v.length > 18) {
+                return 'Account number must be 9-18 digits';
+              }
+              return null;
+            },
           ),
           SizedBox(height: 14.h),
           _EditField(
@@ -524,6 +563,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             validator: (v) => (v == null || v.length < 10)
                 ? 'Enter a valid 10-digit number'
                 : null,
+          ),
+          SizedBox(height: 14.h),
+          _EditField(
+            label: 'UPI ID (Optional)',
+            controller: _upiIdCtrl,
+            icon: const Icon(
+              Icons.alternate_email_rounded,
+              color: AppColors.primarycolor,
+            ),
+            keyboardType: TextInputType.emailAddress,
+            hint: 'e.g. name@upi',
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return null;
+              final upiRegex = RegExp(r'^[\w.\-]+@[a-zA-Z]+$');
+              return upiRegex.hasMatch(v.trim())
+                  ? null
+                  : 'Enter a valid UPI ID (e.g. name@upi)';
+            },
           ),
         ],
 
@@ -771,6 +828,7 @@ class _EditField extends StatelessWidget {
           textCapitalization: textCapitalization,
           inputFormatters: inputFormatters,
           validator: validator,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
           style: TextStyle(
             fontSize: 14.sp,
             fontWeight: FontWeight.w600,
@@ -793,6 +851,7 @@ class _EditField extends StatelessWidget {
               horizontal: 14.w,
               vertical: 16.h,
             ),
+            errorMaxLines: 2,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12.r),
               borderSide: BorderSide(color: Colors.grey[200]!),

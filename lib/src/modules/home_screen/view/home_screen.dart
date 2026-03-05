@@ -167,7 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
     'assigned',
   };
   static const _transitStatuses = {'shipped', 'out_for_delivery'};
-  static const _historyStatuses = {'delivered', 'cancelled', 'failed'};
+  static const _historyStatuses = {'delivered', 'failed'};
 
   List<DeliveryOrder> get _newOrders => _allOrders
       .where((o) => _newStatuses.contains(o.orderStatus.toLowerCase()))
@@ -289,36 +289,36 @@ class _HomeScreenState extends State<HomeScreen> {
                   if (_selectedIndex == 0) ...[
                     _buildDashboard(),
                     SizedBox(height: 16.h),
-                    // ─── Search Bar ──────────────────────────────────────────────────
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16.w),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8.r),
-                          border: Border.all(color: Colors.grey[200]!),
-                        ),
-                        child: TextField(
-                          decoration: InputDecoration(
-                            hintText: 'Search Order ID',
-                            hintStyle: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 14.sp,
-                            ),
-                            prefixIcon: Icon(
-                              Icons.search,
-                              color: Colors.grey[400],
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 16.w,
-                              vertical: 14.h,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 16.h),
+                    // // ─── Search Bar ──────────────────────────────────────────────────
+                    // Padding(
+                    //   padding: EdgeInsets.symmetric(horizontal: 16.w),
+                    //   child: Container(
+                    //     decoration: BoxDecoration(
+                    //       color: Colors.white,
+                    //       borderRadius: BorderRadius.circular(8.r),
+                    //       border: Border.all(color: Colors.grey[200]!),
+                    //     ),
+                    //     child: TextField(
+                    //       decoration: InputDecoration(
+                    //         hintText: 'Search Order ID',
+                    //         hintStyle: TextStyle(
+                    //           color: Colors.grey[400],
+                    //           fontSize: 14.sp,
+                    //         ),
+                    //         prefixIcon: Icon(
+                    //           Icons.search,
+                    //           color: Colors.grey[400],
+                    //         ),
+                    //         border: InputBorder.none,
+                    //         contentPadding: EdgeInsets.symmetric(
+                    //           horizontal: 16.w,
+                    //           vertical: 14.h,
+                    //         ),
+                    //       ),
+                    //     ),
+                    //   ),
+                    // ),
+                    // SizedBox(height: 16.h),
 
                     // ─── Tabs ────────────────────────────────────────────────────────────────
                     Container(

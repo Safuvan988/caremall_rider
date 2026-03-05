@@ -81,27 +81,35 @@ class OrderRepo {
     }
   }
 
-  /// Fetch orders from the delivery endpoint and wrap them in a DashboardModel.
-  /// This is used for the "Delivered Today" screen which needs order details.
   static Future<DashboardModel> getDeliveredTodayData() async {
     final token = await StorageService.getAuthToken();
+    try {
+      final response = await http
+          .get(
+            Uri.parse(ApiUrls.deliveryOrders),
+            headers: {
+              'Content-Type': 'application/json',
+              if (token != null) 'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
-    final response = await http.get(
-      Uri.parse(ApiUrls.deliveryOrders),
-      headers: {
-        'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
-      // DashboardModel.fromJson handles calculating summary from the orders list
-      return DashboardModel.fromJson(body);
-    } else {
-      throw Exception(
-        'Failed to load today\'s orders (${response.statusCode}): ${response.body}',
-      );
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        Map<String, dynamic> data;
+        if (body is List) {
+          data = {'success': true, 'todayOrders': body};
+        } else {
+          data = Map<String, dynamic>.from(body);
+        }
+        return DashboardModel.fromJson(data);
+      } else {
+        throw Exception(
+          'Failed to load today\'s orders (${response.statusCode}): ${response.body}',
+        );
+      }
+    } catch (e) {
+      throw Exception('Failed to load delivered today data: $e');
     }
   }
 
