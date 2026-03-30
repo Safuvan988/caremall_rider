@@ -428,8 +428,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
           validator: (v) {
             if (v == null || v.trim().isEmpty) return 'Name is required';
-            if (v.trim().length < 3)
+            if (v.trim().length < 3) {
               return 'Name must be at least 3 characters';
+            }
             if (!RegExp(r'^[a-zA-Z\s]+$').hasMatch(v.trim())) {
               return 'Enter a valid name (letters and spaces only)';
             }
@@ -449,8 +450,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
           keyboardType: TextInputType.emailAddress,
           validator: (v) {
-            if (v == null || v.trim().isEmpty) return null;
-            if (!v.contains('@')) return 'Enter a valid email';
+            if (v == null || v.trim().isEmpty) return 'Email is required';
+            if (!RegExp(
+              r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+            ).hasMatch(v.trim())) {
+              return 'Please enter a valid email';
+            }
             return null;
           },
         ),
@@ -485,6 +490,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ],
           ),
         ),
+
         SizedBox(height: 20.h),
 
         if (_paymentMode == 'bank') ...[
@@ -496,8 +502,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               color: AppColors.primarycolor,
             ),
             textCapitalization: TextCapitalization.words,
-            validator: (v) =>
-                (v == null || v.trim().isEmpty) ? 'Required' : null,
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return 'Required';
+              if (v.trim().length < 3) return 'Enter a valid name';
+              if (!RegExp(r'^[a-zA-Z\s]+$').hasMatch(v.trim())) {
+                return 'Enter a valid name (letters only)';
+              }
+              return null;
+            },
           ),
           SizedBox(height: 14.h),
           _EditField(
@@ -539,8 +551,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               color: AppColors.primarycolor,
             ),
             textCapitalization: TextCapitalization.words,
-            validator: (v) =>
-                (v == null || v.trim().isEmpty) ? 'Required' : null,
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return 'Required';
+              if (v.trim().length < 3) return 'Enter a valid bank name';
+              if (!RegExp(r'^[a-zA-Z\s]+$').hasMatch(v.trim())) {
+                return 'Letters and spaces only';
+              }
+              return null;
+            },
           ),
         ],
 
@@ -678,7 +696,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             _UpperCaseFormatter(),
           ],
           hint: 'e.g. KL01AB1234',
-          validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+          validator: (v) {
+            if (v == null || v.trim().isEmpty) return 'Required';
+            // Validates common Indian vehicle registration formats
+            final regRegex = RegExp(r'^[A-Z]{2}\s?\d{2}\s?[A-Z]{1,3}\s?\d{4}$');
+            if (!regRegex.hasMatch(v.trim().toUpperCase())) {
+              return 'Enter valid format (e.g. KL01AB1234)';
+            }
+            return null;
+          },
         ),
       ],
     );
@@ -849,9 +875,16 @@ class _EditField extends StatelessWidget {
             fillColor: Colors.white,
             contentPadding: EdgeInsets.symmetric(
               horizontal: 14.w,
-              vertical: 16.h,
+              vertical: 14.h,
             ),
             errorMaxLines: 2,
+            isDense: true,
+            errorStyle: TextStyle(
+              color: Colors.red[700],
+              fontSize: 11.sp,
+              fontWeight: FontWeight.w500,
+              height: 1.2,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12.r),
               borderSide: BorderSide(color: Colors.grey[200]!),

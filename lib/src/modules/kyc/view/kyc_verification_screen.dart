@@ -30,7 +30,11 @@ class _KycVerificationScreenState extends State<KycVerificationScreen> {
     final localStatus = await StorageService.getKycStatus();
     if (mounted) {
       setState(() => _status = localStatus);
-      if (_status == 'verified' || _status == 'under_review') {
+      final s = _status.toLowerCase();
+      if (s == 'verified' ||
+          s == 'under_review' ||
+          s == 'approved' ||
+          s == 'active') {
         _navigateHome();
         return;
       }
@@ -46,7 +50,11 @@ class _KycVerificationScreenState extends State<KycVerificationScreen> {
         _isInitLoading = false;
       });
 
-      if (_status == 'verified' || _status == 'under_review') {
+      final s = _status.toLowerCase();
+      if (s == 'verified' ||
+          s == 'under_review' ||
+          s == 'approved' ||
+          s == 'active') {
         _navigateHome();
       }
     }

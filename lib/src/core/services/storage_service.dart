@@ -82,7 +82,11 @@ class StorageService {
   /// Check if KYC has been completed
   static Future<bool> isKycCompleted() async {
     final status = await getKycStatus();
-    return status == 'verified' || status == 'under_review';
+    final s = status.toLowerCase();
+    return s == 'verified' ||
+        s == 'under_review' ||
+        s == 'approved' ||
+        s == 'active';
   }
 
   /// Save KYC status (pending, under_review, verified, rejected)
